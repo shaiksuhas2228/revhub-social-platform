@@ -242,23 +242,30 @@
             </button>
             <h4 class="mb-0">Followers</h4>
           </div>
-          <div class="list-group">
+          <div class="list-group" *ngIf="followersList.length > 0">
             <div class="list-group-item d-flex align-items-center justify-content-between" *ngFor="let follower of followersList">
               <div class="d-flex align-items-center">
-                <img src="default.jpg" class="rounded-circle me-3" alt="Avatar" style="width: 40px; height: 40px; object-fit: cover;">
+                <img [src]="follower.profilePicture || 'default.jpg'" class="rounded-circle me-3" alt="Avatar" style="width: 40px; height: 40px; object-fit: cover;">
                 <div>
-                  <h6 class="mb-0">{{follower.name}}</h6>
+                  <h6 class="mb-0">{{follower.username}}</h6>
                   <small class="text-muted">&#64;{{follower.username}}</small>
-                  <small class="text-muted d-block">{{follower.followers}} followers</small>
+                  <small class="text-muted d-block" *ngIf="follower.bio">{{follower.bio}}</small>
                 </div>
               </div>
-              <button class="btn btn-sm" 
-                      [class.btn-primary]="!isFollowing(follower)"
-                      [class.btn-outline-secondary]="isFollowing(follower)"
-                      (click)="isFollowing(follower) ? unfollowUser(follower) : followFromList(follower)">
-                {{isFollowing(follower) ? 'Following' : 'Follow'}}
-              </button>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" 
+                        routerLink="/profile/{{follower.username}}">
+                  View Profile
+                </button>
+                <button class="btn btn-sm btn-outline-danger" 
+                        (click)="removeFollower(follower)">
+                  Remove
+                </button>
+              </div>
             </div>
+          </div>
+          <div *ngIf="followersList.length === 0" class="text-center text-muted py-4">
+            <p>No followers yet</p>
           </div>
         </div>
 
@@ -270,20 +277,30 @@
             </button>
             <h4 class="mb-0">Following</h4>
           </div>
-          <div class="list-group">
+          <div class="list-group" *ngIf="followingList.length > 0">
             <div class="list-group-item d-flex align-items-center justify-content-between" *ngFor="let following of followingList">
               <div class="d-flex align-items-center">
-                <img src="default.jpg" class="rounded-circle me-3" alt="Avatar" style="width: 40px; height: 40px; object-fit: cover;">
+                <img [src]="following.profilePicture || 'default.jpg'" class="rounded-circle me-3" alt="Avatar" style="width: 40px; height: 40px; object-fit: cover;">
                 <div>
-                  <h6 class="mb-0">{{following.name}}</h6>
+                  <h6 class="mb-0">{{following.username}}</h6>
                   <small class="text-muted">&#64;{{following.username}}</small>
-                  <small class="text-muted d-block">{{following.followers}} followers</small>
+                  <small class="text-muted d-block" *ngIf="following.bio">{{following.bio}}</small>
                 </div>
               </div>
-              <button class="btn btn-sm btn-outline-secondary" (click)="unfollowUser(following)">
-                Following
-              </button>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" 
+                        routerLink="/profile/{{following.username}}">
+                  View Profile
+                </button>
+                <button class="btn btn-sm btn-outline-danger" 
+                        (click)="unfollowUser(following)">
+                  Unfollow
+                </button>
+              </div>
             </div>
+          </div>
+          <div *ngIf="followingList.length === 0" class="text-center text-muted py-4">
+            <p>Not following anyone yet</p>
           </div>
         </div>
 
@@ -432,20 +449,52 @@
     <div [class.d-none]="activeTab !== 'notifications'" class="content-section">
       <div class="container">
         <h3 class="mb-4">Notifications</h3>
-        <div class="list-group">
-          <div class="list-group-item" *ngFor="let notification of notifications" [class.bg-light]="!notification.read">
+        
+        <div *ngIf="notifications.length === 0" class="text-center text-muted">
+          <p>No notifications yet</p>
+        </div>
+        
+        <div class="list-group" *ngIf="notifications.length > 0">
+          <div class="list-group-item" 
+               *ngFor="let notification of notifications" 
+               [class.bg-light]="!notification.readStatus"
+               (click)="markNotificationAsRead(notification)">
             <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <h6 class="mb-1">
-                  <i class="fas fa-user-plus" *ngIf="notification.type === 'follow'"></i>
-                  <i class="fas fa-heart" *ngIf="notification.type === 'like'"></i>
-                  <i class="fas fa-at" *ngIf="notification.type === 'mention'"></i>
-                  {{notification.type === 'follow' ? 'New follower' : notification.type === 'like' ? 'Post liked' : 'Mention'}}
-                </h6>
-                <p class="mb-1">{{notification.message}}</p>
-                <small class="text-muted">{{notification.timestamp}}</small>
+              <div class="d-flex w-100">
+                <img *ngIf="notification.fromUserProfilePicture" 
+                     [src]="notification.fromUserProfilePicture" 
+                     class="rounded-circle me-3" 
+                     style="width: 40px; height: 40px; object-fit: cover;" 
+                     alt="Profile">
+                <div class="flex-grow-1">
+                  <h6 class="mb-1" [class.fw-bold]="!notification.readStatus">
+                    <i class="fas fa-user-plus" *ngIf="notification.type === 'FOLLOW_REQUEST'"></i>
+                    <i class="fas fa-user-check" *ngIf="notification.type === 'FOLLOW'"></i>
+                    <i class="fas fa-heart" *ngIf="notification.type === 'LIKE'"></i>
+                    <i class="fas fa-comment" *ngIf="notification.type === 'COMMENT'"></i>
+                    <i class="fas fa-at" *ngIf="notification.type === 'MENTION'"></i>
+                    {{notification.type === 'FOLLOW_REQUEST' ? 'Follow Request' : 
+                      notification.type === 'FOLLOW' ? 'New Follower' : 
+                      notification.type === 'LIKE' ? 'Post Liked' : 
+                      notification.type === 'COMMENT' ? 'New Comment' : 'Mention'}}
+                  </h6>
+                  <p class="mb-1">{{notification.message}}</p>
+                  <small class="text-muted">{{notification.createdDate | date:'short'}}</small>
+                  
+                  <!-- Follow Request Actions -->
+                  <div *ngIf="notification.type === 'FOLLOW_REQUEST'" class="mt-2">
+                    <button class="btn btn-sm btn-primary me-2" 
+                            (click)="acceptFollowRequest(notification); $event.stopPropagation()">
+                      Accept
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            (click)="rejectFollowRequest(notification); $event.stopPropagation()">
+                      Decline
+                    </button>
+                  </div>
+                </div>
               </div>
-              <span *ngIf="!notification.read" class="badge bg-primary">New</span>
+              <span *ngIf="!notification.readStatus" class="badge bg-primary rounded-pill">New</span>
             </div>
           </div>
         </div>
@@ -470,6 +519,7 @@
       </button>
       <button class="btn btn-link" [class.active]="activeTab === 'notifications'" (click)="setActiveTab('notifications')">
         <i class="fas fa-bell"></i> Notifications
+        <span *ngIf="unreadNotificationCount > 0" class="badge bg-danger rounded-pill ms-1">{{unreadNotificationCount}}</span>
       </button>
     </div>
   </nav>
@@ -492,10 +542,13 @@
             <small class="text-muted d-block">{{user.followers}} followers</small>
           </div>
           <button class="btn btn-sm" 
-                  [class.btn-primary]="!isFollowing(user)"
-                  [class.btn-outline-secondary]="isFollowing(user)"
-                  (click)="followUser(user)">
-            {{isFollowing(user) ? 'Following' : 'Follow'}}
+                  [class.btn-primary]="user.followStatus === 'NOT_FOLLOWING'"
+                  [class.btn-outline-danger]="user.followStatus === 'ACCEPTED'"
+                  [class.btn-outline-warning]="user.followStatus === 'PENDING'"
+                  (click)="user.followStatus === 'ACCEPTED' ? unfollowUser(user) : 
+                           user.followStatus === 'PENDING' ? cancelFollowRequest(user) : followUser(user)">
+            {{user.followStatus === 'ACCEPTED' ? 'Unfollow' : 
+              user.followStatus === 'PENDING' ? 'Cancel Request' : 'Follow'}}
           </button>
         </div>
       </div>

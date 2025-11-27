@@ -10,10 +10,36 @@
         <h3>{{user?.username || 'Unknown User'}}</h3>
         <p class="text-muted">{{user?.email}}</p>
         <p *ngIf="user?.bio" class="mb-3">{{user.bio}}</p>
+        <div class="d-flex justify-content-center gap-3 mb-3">
+          <div class="text-center">
+            <strong>{{user?.followersCount || 0}}</strong>
+            <div class="text-muted small">Followers</div>
+          </div>
+          <div class="text-center">
+            <strong>{{user?.followingCount || 0}}</strong>
+            <div class="text-muted small">Following</div>
+          </div>
+          <div class="text-center">
+            <strong>{{posts.length}}</strong>
+            <div class="text-muted small">Posts</div>
+          </div>
+        </div>
         <p class="text-muted small">Member since: {{user?.createdDate | date:'MMM yyyy'}}</p>
+        <div *ngIf="user?.isPrivate" class="mb-2">
+          <span class="badge bg-secondary"><i class="fas fa-lock"></i> Private Account</span>
+        </div>
         <button 
           *ngIf="isOwnProfile" 
           class="btn btn-outline-primary">Edit Profile</button>
+        <button 
+          *ngIf="!isOwnProfile" 
+          class="btn"
+          [class]="getFollowButtonClass()"
+          [disabled]="isFollowLoading || followStatus === 'PENDING'"
+          (click)="onFollowButtonClick()">
+          <span *ngIf="isFollowLoading" class="spinner-border spinner-border-sm me-2"></span>
+          {{getFollowButtonText()}}
+        </button>
       </div>
     </div>
     

@@ -23,6 +23,8 @@ export class ProfileComponent implements OnInit {
   newComment = '';
   showDeleteCommentConfirm = false;
   commentToDelete: { post: any, commentId: number } | null = null;
+  followStatus: string = 'NOT_FOLLOWING';
+  isFollowLoading = false;
 
   constructor(
     private profileService: ProfileService,
@@ -39,6 +41,9 @@ export class ProfileComponent implements OnInit {
         this.isOwnProfile = this.username === this.authService.getCurrentUser()?.username;
         this.loadProfile();
         this.loadUserPosts();
+        if (!this.isOwnProfile) {
+          this.loadFollowStatus();
+        }
       }
     });
   }
@@ -146,5 +151,78 @@ export class ProfileComponent implements OnInit {
   canDeleteComment(comment: any, post: any): boolean {
     const currentUser = this.authService.getCurrentUser();
     return comment.author?.username === currentUser?.username || post.author?.username === currentUser?.username;
+  }
+
+  loadFollowStatus() {
+    this.profileService.getFollowStatus(this.username).subscribe({
+      next: (response) => {
+        this.followStatus = response.status;
+      },
+      error: (error) => {
+        console.error('Error loading follow status:', error);
+      }
+    });
+  }
+
+  followUser() {
+    this.isFollowLoading = true;
+    this.profileService.followUser(this.username).subscribe({
+      next: (response) => {
+        console.log(response.message);
+        this.loadFollowStatus();
+        this.loadProfile();
+        this.isFollowLoading = false;
+      },
+      error: (error) => {
+        console.error('Error following user:', error);
+        this.isFollowLoading = false;
+      }
+    });
+  }
+
+  unfollowUser() {
+    this.isFollowLoading = true;
+    this.profileService.unfollowUser(this.username).subscribe({
+      next: (response) => {
+        console.log(response.message);
+        this.loadFollowStatus();
+        this.loadProfile();
+        this.isFollowLoading = false;
+      },
+      error: (error) => {
+        console.error('Error unfollowing user:', error);
+        this.isFollowLoading = false;
+      }
+    });
+  }
+
+  getFollowButtonText(): string {
+    switch (this.followStatus) {
+      case 'ACCEPTED':
+        return 'Unfollow';
+      case 'PENDING':
+        return 'Requested';
+      default:
+        return 'Follow';
+    }
+  }
+
+  getFollowButtonClass(): string {
+    switch (this.followStatus) {
+      case 'ACCEPTED':
+        return 'btn-outline-danger';
+      case 'PENDING':
+        return 'btn-outline-warning';
+      default:
+        return 'btn-primary';
+    }
+  }
+
+  onFollowButtonClick() {
+    if (this.followStatus === 'ACCEPTED') {
+      this.unfollowUser();
+    } else if (this.followStatus === 'NOT_FOLLOWING') {
+      this.followUser();
+    }
   }
 }

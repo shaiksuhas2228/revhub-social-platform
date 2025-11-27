@@ -3,11 +3,15 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface Notification {
-  id: number;
+  id: string;
   type: string;
   message: string;
   readStatus: boolean;
   createdDate: string;
+  fromUserId?: string;
+  fromUsername?: string;
+  fromUserProfilePicture?: string;
+  followRequestId?: number;
 }
 
 @Injectable({
@@ -22,7 +26,19 @@ export class NotificationService {
     return this.http.get<Notification[]>(this.apiUrl);
   }
 
-  markAsRead(id: number): Observable<Notification> {
+  markAsRead(id: string): Observable<Notification> {
     return this.http.put<Notification>(`${this.apiUrl}/${id}/read`, {});
+  }
+
+  getUnreadCount(): Observable<number> {
+    return this.http.get<number>(`${this.apiUrl}/unread-count`);
+  }
+
+  acceptFollowRequest(followId: number): Observable<string> {
+    return this.http.post<string>(`${this.apiUrl}/follow-request/${followId}/accept`, {});
+  }
+
+  rejectFollowRequest(followId: number): Observable<string> {
+    return this.http.post<string>(`${this.apiUrl}/follow-request/${followId}/reject`, {});
   }
 }

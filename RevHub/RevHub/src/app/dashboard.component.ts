@@ -7,6 +7,8 @@ import { FeedService, Post } from './core/services/feed.service';
 import { AuthService } from './core/services/auth.service';
 import { ProfileService, User } from './core/services/profile.service';
 import { PostService } from './core/services/post.service';
+import { ChatService, ChatMessage } from './core/services/chat.service';
+import { NotificationService, Notification } from './core/services/notification.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -72,7 +74,9 @@ export class DashboardComponent implements OnInit {
     private feedService: FeedService,
     private authService: AuthService,
     private profileService: ProfileService,
-    private postService: PostService
+    private postService: PostService,
+    private chatService: ChatService,
+    private notificationService: NotificationService
   ) {}
 
   ngOnInit() {
@@ -90,6 +94,10 @@ export class DashboardComponent implements OnInit {
     
     this.loadFeeds();
     this.loadSuggestedUsers();
+    // Load MongoDB notifications
+    if (this.currentUser) {
+      this.loadNotifications();
+    }
   }
 
   loadFeeds() {
@@ -132,7 +140,7 @@ export class DashboardComponent implements OnInit {
     if (this.isLoading || !this.hasMorePosts || this.feedType === 'universal') return;
     
     this.isLoading = true;
-    const followingNames = this.followingList.map(f => f.name);
+    const followingNames = this.followingList.map(f => f.username);
     const morePosts = this.feedService.loadMorePosts(followingNames);
     
     if (morePosts.length > 0) {
@@ -148,7 +156,9 @@ export class DashboardComponent implements OnInit {
     this.activeTab = tab;
     if (tab === 'feed') {
       this.showSuggestions = true;
-      this.loadFeeds(); // Reload posts when switching to feed
+      this.loadFeeds();
+    } else if (tab === 'notifications') {
+      this.loadNotifications();
     }
   }
 
@@ -456,23 +466,65 @@ export class DashboardComponent implements OnInit {
 
 
   followUser(user: any) {
-    if (!this.followingList.some(f => f.username === user.username)) {
-      this.followingList.push({...user});
-    }
+    this.profileService.followUser(user.username).subscribe({
+      next: (response) => {
+        console.log('Follow success:', response.message);
+        if (response.message.includes('request sent')) {
+          user.followStatus = 'PENDING';
+        } else {
+          user.followStatus = 'ACCEPTED';
+        }
+        this.loadUserProfile();
+      },
+      error: (error) => {
+        console.error('Error following user:', error);
+      }
+    });
+  }
+  
+  cancelFollowRequest(user: any) {
+    this.profileService.cancelFollowRequest(user.username).subscribe({
+      next: (response) => {
+        console.log(response.message);
+        user.followStatus = 'NOT_FOLLOWING';
+        this.loadUserProfile();
+      },
+      error: (error) => {
+        console.error('Error cancelling follow request:', error);
+        // Fallback: still update UI to prevent stuck state
+        user.followStatus = 'NOT_FOLLOWING';
+      }
+    });
   }
 
   followFromList(user: any) {
-    if (!this.followingList.some(f => f.name === user.name)) {
-      this.followingList.push(user);
-    }
+    this.profileService.followUser(user.username).subscribe({
+      next: (response) => {
+        console.log(response.message);
+        user.followStatus = 'ACCEPTED';
+        this.loadUserProfile();
+      },
+      error: (error) => {
+        console.error('Error following user:', error);
+      }
+    });
   }
 
   unfollowUser(user: any) {
-    this.followingList = this.followingList.filter(f => f.name !== user.name);
+    this.profileService.unfollowUser(user.username).subscribe({
+      next: (response) => {
+        console.log(response.message);
+        user.followStatus = 'NOT_FOLLOWING';
+        this.loadUserProfile();
+      },
+      error: (error) => {
+        console.error('Error unfollowing user:', error);
+      }
+    });
   }
 
   isFollowing(user: any): boolean {
-    return this.followingList.some(f => f.username === user.username);
+    return user.followStatus === 'ACCEPTED';
   }
 
   closeSuggestions() {
@@ -481,19 +533,43 @@ export class DashboardComponent implements OnInit {
 
   selectChat(contact: string) {
     this.selectedChat = contact;
+    this.loadConversation(contact);
+  }
+  
+  loadConversation(username: string) {
+    this.chatService.getConversation(username).subscribe({
+      next: (messages) => {
+        this.messages[username] = messages.map(msg => ({
+          sender: msg.senderUsername,
+          content: msg.content,
+          timestamp: new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+        }));
+      },
+      error: (error) => {
+        console.error('Error loading conversation:', error);
+        this.messages[username] = [];
+      }
+    });
   }
 
   sendMessage() {
     if (this.newMessage.trim() && this.selectedChat) {
-      if (!this.messages[this.selectedChat]) {
-        this.messages[this.selectedChat] = [];
-      }
-      this.messages[this.selectedChat].push({
-        sender: this.profileName,
-        content: this.newMessage,
-        timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+      this.chatService.sendMessage(this.selectedChat, this.newMessage).subscribe({
+        next: (message) => {
+          if (!this.messages[this.selectedChat!]) {
+            this.messages[this.selectedChat!] = [];
+          }
+          this.messages[this.selectedChat!].push({
+            sender: message.senderUsername,
+            content: message.content,
+            timestamp: new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+          });
+          this.newMessage = '';
+        },
+        error: (error) => {
+          console.error('Error sending message:', error);
+        }
       });
-      this.newMessage = '';
     }
   }
 
@@ -510,51 +586,16 @@ export class DashboardComponent implements OnInit {
   allUsers = ['Akram', 'Karthik', 'Sai', 'Priya', 'Arjun', 'Rohit'];
   showFollowersList = false;
   showFollowingList = false;
-  followersList = [
-    { name: 'Karthik', username: 'karthik_dev', followers: 245 },
-    { name: 'Sai', username: 'sai_tech', followers: 189 },
-    { name: 'Priya', username: 'priya_design', followers: 567 },
-    { name: 'Arjun', username: 'arjun_photo', followers: 123 },
-    { name: 'Ananya', username: 'ananya_art', followers: 345 },
-    { name: 'Rohit', username: 'rohit_code', followers: 456 },
-    { name: 'Kavya', username: 'kavya_write', followers: 234 }
-  ];
-  followingList = [
-    { name: 'Karthik', username: 'karthik_dev', followers: 245 },
-    { name: 'Sai', username: 'sai_tech', followers: 189 },
-    { name: 'Priya', username: 'priya_design', followers: 567 },
-    { name: 'Rohit', username: 'rohit_code', followers: 456 },
-    { name: 'Neha', username: 'neha_music', followers: 678 }
-  ];
+  followersList: User[] = [];
+  followingList: User[] = [];
   suggestedUsers: any[] = [];
   showSuggestions = true;
   showDeleteConfirm = false;
   postToDelete: any = null;
   showDeleteCommentConfirm = false;
   commentToDelete: { post: any, commentId: number } | null = null;
-  notifications = [
-    {
-      id: 1,
-      type: 'follow',
-      message: 'Priya started following you',
-      timestamp: '2 hours ago',
-      read: false
-    },
-    {
-      id: 2,
-      type: 'like',
-      message: 'Rohit liked your post',
-      timestamp: '5 hours ago',
-      read: false
-    },
-    {
-      id: 3,
-      type: 'mention',
-      message: 'Karthik mentioned you in a post',
-      timestamp: '1 day ago',
-      read: true
-    }
-  ];
+  notifications: Notification[] = [];
+  unreadNotificationCount = 0;
   
   loadUserProfile() {
     if (this.currentUser?.username) {
@@ -674,11 +715,49 @@ export class DashboardComponent implements OnInit {
   showFollowers() {
     this.showFollowersList = true;
     this.showFollowingList = false;
+    this.loadFollowers();
   }
 
   showFollowing() {
     this.showFollowingList = true;
     this.showFollowersList = false;
+    this.loadFollowing();
+  }
+  
+  loadFollowers() {
+    if (this.currentUser?.username) {
+      console.log('Loading followers for user:', this.currentUser.username);
+      this.profileService.getFollowers(this.currentUser.username).subscribe({
+        next: (followers) => {
+          console.log('Followers loaded successfully:', followers);
+          this.followersList = followers;
+        },
+        error: (error) => {
+          console.error('Error loading followers:', error);
+          this.followersList = [];
+        }
+      });
+    } else {
+      console.log('No current user found for loading followers');
+    }
+  }
+  
+  loadFollowing() {
+    if (this.currentUser?.username) {
+      console.log('Loading following for user:', this.currentUser.username);
+      this.profileService.getFollowing(this.currentUser.username).subscribe({
+        next: (following) => {
+          console.log('Following loaded successfully:', following);
+          this.followingList = following;
+        },
+        error: (error) => {
+          console.error('Error loading following:', error);
+          this.followingList = [];
+        }
+      });
+    } else {
+      console.log('No current user found for loading following');
+    }
   }
 
   hideUserLists() {
@@ -706,28 +785,111 @@ export class DashboardComponent implements OnInit {
     const mentionRegex = /@(\w+)/g;
     const mentions = content.match(mentionRegex);
     if (mentions) {
-      mentions.forEach(mention => {
-        const username = mention.substring(1);
-        this.addMentionNotification(username);
-      });
+      // TODO: Implement mention notifications via backend API
+      console.log('Mentions found:', mentions);
     }
   }
 
-  addMentionNotification(username: string) {
-    const notification = {
-      id: Date.now(),
-      type: 'mention',
-      message: `${this.profileName} mentioned you in a post`,
-      timestamp: 'Just now',
-      read: false
-    };
-    this.notifications.unshift(notification);
+  loadNotifications() {
+    this.notificationService.getNotifications().subscribe({
+      next: (notifications) => {
+        console.log('Notifications loaded successfully:', notifications);
+        this.notifications = notifications;
+      },
+      error: (error) => {
+        console.error('Error loading notifications:', {
+          status: error.status,
+          statusText: error.statusText,
+          url: error.url,
+          message: error.message
+        });
+        this.notifications = [];
+      }
+    });
+    
+    this.notificationService.getUnreadCount().subscribe({
+      next: (count) => {
+        console.log('Unread count loaded:', count);
+        this.unreadNotificationCount = count;
+      },
+      error: (error) => {
+        console.error('Error loading unread count:', {
+          status: error.status,
+          statusText: error.statusText,
+          url: error.url,
+          message: error.message
+        });
+        this.unreadNotificationCount = 0;
+      }
+    });
+  }
+  
+  markNotificationAsRead(notification: Notification) {
+    if (!notification.readStatus) {
+      this.notificationService.markAsRead(notification.id).subscribe({
+        next: () => {
+          notification.readStatus = true;
+          this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
+        },
+        error: (error) => {
+          console.error('Error marking notification as read:', error);
+        }
+      });
+    }
+  }
+  
+  acceptFollowRequest(notification: Notification) {
+    if (notification.followRequestId) {
+      this.notificationService.acceptFollowRequest(notification.followRequestId).subscribe({
+        next: () => {
+          console.log('Follow request accepted successfully');
+          this.loadNotifications();
+          this.loadUserProfile();
+        },
+        error: (error) => {
+          console.error('Error accepting follow request:', error);
+        }
+      });
+    }
+  }
+  
+  rejectFollowRequest(notification: Notification) {
+    if (notification.followRequestId) {
+      this.notificationService.rejectFollowRequest(notification.followRequestId).subscribe({
+        next: () => {
+          console.log('Follow request rejected successfully');
+          this.loadNotifications();
+        },
+        error: (error) => {
+          console.error('Error rejecting follow request:', error);
+        }
+      });
+    }
   }
   
   loadSuggestedUsers() {
     this.profileService.getAllUsers().subscribe({
       next: (users) => {
-        this.suggestedUsers = users.filter(user => user.username !== this.currentUser?.username).slice(0, 5);
+        const filteredUsers = users.filter(user => user.username !== this.currentUser?.username).slice(0, 5);
+        
+        // Set default follow status and load actual status if authenticated
+        filteredUsers.forEach(user => {
+          user.followStatus = 'NOT_FOLLOWING';
+          
+          if (this.currentUser) {
+            this.profileService.getFollowStatus(user.username).subscribe({
+              next: (response) => {
+                user.followStatus = response.status;
+              },
+              error: (error) => {
+                // Silently set to NOT_FOLLOWING on error
+                user.followStatus = 'NOT_FOLLOWING';
+              }
+            });
+          }
+        });
+        
+        this.suggestedUsers = filteredUsers;
       },
       error: (error) => {
         console.error('Error loading suggested users:', error);
@@ -743,5 +905,22 @@ export class DashboardComponent implements OnInit {
   isImage(url: string): boolean {
     if (!url) return false;
     return url.startsWith('data:image/') || url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.gif') || url.includes('.webp') || (url.startsWith('blob:') && this.selectedFileType === 'image');
+  }
+  
+  removeFollower(follower: User) {
+    console.log('Attempting to remove follower:', follower.username);
+    this.profileService.removeFollower(follower.username).subscribe({
+      next: (response) => {
+        console.log('Follower removed successfully:', response.message);
+        this.loadFollowers();
+        this.loadUserProfile();
+      },
+      error: (error) => {
+        console.error('Error removing follower:', error);
+        console.error('Error details:', error.error);
+        console.error('Status:', error.status);
+        console.error('URL:', error.url);
+      }
+    });
   }
 }

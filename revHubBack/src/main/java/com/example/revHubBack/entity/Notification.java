@@ -31,6 +31,12 @@ public class Notification {
     @Column(nullable = false)
     private Boolean readStatus = false;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "from_user_id")
+    private User fromUser;
+
+    private Long followRequestId;
+
     @CreationTimestamp
     private LocalDateTime createdDate;
 }

@@ -34,4 +34,23 @@ public class NotificationService {
         notification.setReadStatus(true);
         return notificationRepository.save(notification);
     }
+
+    public void createFollowRequestNotification(User toUser, User fromUser, Long followRequestId) {
+        Notification notification = new Notification();
+        notification.setUser(toUser);
+        notification.setFromUser(fromUser);
+        notification.setType("FOLLOW_REQUEST");
+        notification.setMessage(fromUser.getUsername() + " wants to follow you");
+        notification.setFollowRequestId(followRequestId);
+        notificationRepository.save(notification);
+    }
+
+    public void createFollowNotification(User toUser, User fromUser) {
+        Notification notification = new Notification();
+        notification.setUser(toUser);
+        notification.setFromUser(fromUser);
+        notification.setType("FOLLOW");
+        notification.setMessage(fromUser.getUsername() + " started following you");
+        notificationRepository.save(notification);
+    }
 }

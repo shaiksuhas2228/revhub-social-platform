@@ -26,6 +26,14 @@ public class Follow {
     @JoinColumn(name = "following_id", nullable = false)
     private User following;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private FollowStatus status = FollowStatus.PENDING;
+
     @CreationTimestamp
     private LocalDateTime createdDate;
+
+    public enum FollowStatus {
+        PENDING, ACCEPTED
+    }
 }

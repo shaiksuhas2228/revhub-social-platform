@@ -1,16 +1,53 @@
 <div class="row">
-  <div class="col-md-6 mx-auto">
+  <div class="col-md-8 mx-auto">
     <h2 class="mb-4">Notifications</h2>
-    <div class="list-group">
-      <div class="list-group-item">
-        <h6 class="mb-1">New follower</h6>
-        <p class="mb-1">Someone started following you</p>
-        <small>2 hours ago</small>
+    
+    <div *ngIf="isLoading" class="text-center">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
       </div>
-      <div class="list-group-item">
-        <h6 class="mb-1">Post liked</h6>
-        <p class="mb-1">Your post received a new like</p>
-        <small>5 hours ago</small>
+    </div>
+    
+    <div *ngIf="!isLoading && notifications.length === 0" class="text-center text-muted">
+      <p>No notifications yet</p>
+    </div>
+    
+    <div class="list-group" *ngIf="!isLoading && notifications.length > 0">
+      <div *ngFor="let notification of notifications" 
+           class="list-group-item d-flex justify-content-between align-items-start"
+           [class.list-group-item-light]="notification.readStatus"
+           [class.bg-light]="!notification.readStatus"
+           (click)="markAsRead(notification)">
+        <div class="d-flex w-100">
+          <img *ngIf="notification.fromUserProfilePicture" 
+               [src]="notification.fromUserProfilePicture" 
+               class="rounded-circle me-3" 
+               style="width: 40px; height: 40px; object-fit: cover;" 
+               alt="Profile">
+          <div class="flex-grow-1">
+            <div class="d-flex w-100 justify-content-between">
+              <h6 class="mb-1" [class.fw-bold]="!notification.readStatus">
+                {{notification.type === 'FOLLOW_REQUEST' ? 'Follow Request' : 
+                  notification.type === 'FOLLOW' ? 'New Follower' : notification.type}}
+              </h6>
+              <small class="text-muted">{{notification.createdDate | date:'short'}}</small>
+            </div>
+            <p class="mb-1">{{notification.message}}</p>
+            
+            <!-- Follow Request Actions -->
+            <div *ngIf="isFollowRequest(notification)" class="mt-2">
+              <button class="btn btn-sm btn-primary me-2" 
+                      (click)="acceptFollowRequest(notification); $event.stopPropagation()">
+                Accept
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" 
+                      (click)="rejectFollowRequest(notification); $event.stopPropagation()">
+                Decline
+              </button>
+            </div>
+          </div>
+        </div>
+        <span *ngIf="!notification.readStatus" class="badge bg-primary rounded-pill">New</span>
       </div>
     </div>
   </div>
