@@ -1,17 +1,50 @@
-<div class="card mb-3">
+<div class="card mb-3" *ngIf="post">
   <div class="card-body">
     <div class="d-flex align-items-center mb-3">
-      <img src="https://via.placeholder.com/40" class="rounded-circle me-3" alt="Avatar">
+      <img [src]="post.author.profilePicture || 'https://via.placeholder.com/40'" 
+           class="rounded-circle me-3" 
+           alt="Avatar"
+           style="width: 40px; height: 40px; object-fit: cover;">
       <div>
-        <h6 class="mb-0">John Doe</h6>
-        <small class="text-muted">2 hours ago</small>
+        <h6 class="mb-0">{{post.author.username}}</h6>
+        <small class="text-muted">{{post.createdDate | date:'short'}}</small>
       </div>
     </div>
-    <p class="card-text">This is a sample post content.</p>
+    
+    <p class="card-text">{{post.content}}</p>
+    
+    <!-- Media Display -->
+    <div class="mb-3" *ngIf="post.imageUrl">
+      <!-- Video Display -->
+      <video 
+        *ngIf="isVideo(post.mediaType)" 
+        [src]="post.imageUrl" 
+        class="img-fluid rounded" 
+        style="max-width: 100%; max-height: 400px;"
+        controls
+        preload="metadata">
+        Your browser does not support the video tag.
+      </video>
+      
+      <!-- Image Display -->
+      <img 
+        *ngIf="isImage(post.mediaType)" 
+        [src]="post.imageUrl" 
+        class="img-fluid rounded" 
+        style="max-width: 100%; max-height: 400px; object-fit: cover;"
+        alt="Post media">
+    </div>
+    
     <div class="d-flex gap-3">
-      <button class="btn btn-sm btn-outline-primary">Like</button>
-      <button class="btn btn-sm btn-outline-secondary">Comment</button>
-      <button class="btn btn-sm btn-outline-info">Share</button>
+      <button class="btn btn-sm btn-outline-primary">
+        <i class="fas fa-heart"></i> Like ({{post.likesCount}})
+      </button>
+      <button class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-comment"></i> Comment ({{post.commentsCount}})
+      </button>
+      <button class="btn btn-sm btn-outline-info">
+        <i class="fas fa-share"></i> Share ({{post.sharesCount}})
+      </button>
     </div>
   </div>
 </div>

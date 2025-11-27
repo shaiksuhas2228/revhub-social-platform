@@ -4,6 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { ThemeService } from './core/services/theme.service';
 import { FeedService, Post } from './core/services/feed.service';
+import { AuthService } from './core/services/auth.service';
+import { ProfileService, User } from './core/services/profile.service';
+import { PostService } from './core/services/post.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -20,8 +23,15 @@ export class DashboardComponent implements OnInit {
   isLoading = false;
   isDarkTheme = false;
   isEditingProfile = false;
-  profileName = 'Akram';
-  profileUsername = 'akramShaik';
+  editBio = '';
+  selectedProfilePicture: File | null = null;
+  profileName = '';
+  profileUsername = '';
+  currentUser: any = null;
+  userProfile: User | null = null;
+  followersCount = 0;
+  followingCount = 0;
+  userPostsData: any[] = [];
   newPostContent = '';
   posts: any[] = [
     {
@@ -44,6 +54,7 @@ export class DashboardComponent implements OnInit {
   
   selectedFile: File | null = null;
   selectedFileType = '';
+  selectedFilePreview: string | null = null;
   showComments: { [key: number]: boolean } = {};
   newComment = '';
   selectedPostId: number | null = null;
@@ -56,28 +67,60 @@ export class DashboardComponent implements OnInit {
   contacts = ['Karthik', 'Sai'];
   messages: { [key: string]: any[] } = {};
 
-  constructor(private themeService: ThemeService, private feedService: FeedService) {}
+  constructor(
+    private themeService: ThemeService, 
+    private feedService: FeedService,
+    private authService: AuthService,
+    private profileService: ProfileService,
+    private postService: PostService
+  ) {}
 
   ngOnInit() {
     this.themeService.isDarkTheme$.subscribe(isDark => {
       this.isDarkTheme = isDark;
     });
+    
+    // Load current user data
+    this.currentUser = this.authService.getCurrentUser();
+    if (this.currentUser) {
+      this.profileName = this.currentUser.username;
+      this.profileUsername = this.currentUser.username;
+      this.loadUserProfile();
+    }
+    
     this.loadFeeds();
+    this.loadSuggestedUsers();
   }
 
   loadFeeds() {
-    this.feedService.resetPagination();
-    this.currentPage = 0;
-    this.hasMorePosts = true;
-    
-    if (this.feedType === 'universal') {
-      this.feedService.getGlobalFeed().subscribe(posts => {
-        this.posts = posts;
-      });
-    } else {
-      const followingNames = this.followingList.map(f => f.name);
-      this.posts = this.feedService.getFollowingFeed(followingNames, 0);
-    }
+    console.log('loadFeeds called');
+    this.isLoading = true;
+    this.postService.getPosts(0, 10).subscribe({
+      next: (response) => {
+        console.log('Posts loaded from backend:', response);
+        this.posts = response.content || [];
+        // Debug: Log each post's media info
+        this.posts.forEach(post => {
+          if (post.imageUrl) {
+            console.log('Post media:', {
+              id: post.id,
+              mediaType: post.mediaType,
+              imageUrl: post.imageUrl.substring(0, 50) + '...',
+              hasVideo: post.imageUrl.startsWith('data:video/'),
+              hasImage: post.imageUrl.startsWith('data:image/')
+            });
+          }
+        });
+        this.currentPage = response.number || 0;
+        this.hasMorePosts = (response.number || 0) < (response.totalPages || 0) - 1;
+        this.isLoading = false;
+      },
+      error: (error) => {
+        console.error('Error loading posts:', error);
+        this.posts = []; // Clear posts on error
+        this.isLoading = false;
+      }
+    });
   }
 
   switchFeedType(type: string) {
@@ -105,6 +148,7 @@ export class DashboardComponent implements OnInit {
     this.activeTab = tab;
     if (tab === 'feed') {
       this.showSuggestions = true;
+      this.loadFeeds(); // Reload posts when switching to feed
     }
   }
 
@@ -114,40 +158,108 @@ export class DashboardComponent implements OnInit {
 
   editProfile() {
     this.isEditingProfile = true;
+    this.editBio = this.userProfile?.bio || '';
   }
 
   saveProfile() {
-    this.isEditingProfile = false;
+    const updates: any = {};
+    
+    if (this.editBio !== (this.userProfile?.bio || '')) {
+      updates.bio = this.editBio;
+    }
+    
+    if (this.selectedProfilePicture) {
+      // Convert image to base64 for simple storage
+      const reader = new FileReader();
+      reader.onload = () => {
+        updates.profilePicture = reader.result as string;
+        this.updateProfile(updates);
+      };
+      reader.readAsDataURL(this.selectedProfilePicture);
+    } else if (Object.keys(updates).length > 0) {
+      this.updateProfile(updates);
+    } else {
+      this.isEditingProfile = false;
+    }
+  }
+  
+  updateProfile(updates: any) {
+    this.profileService.updateProfile(updates).subscribe({
+      next: (updatedUser) => {
+        this.loadUserProfile(); // Reload profile data
+        this.isEditingProfile = false;
+        this.selectedProfilePicture = null;
+      },
+      error: (error) => {
+        console.error('Error updating profile:', error);
+      }
+    });
   }
 
   cancelEdit() {
     this.isEditingProfile = false;
+    this.editBio = '';
+    this.selectedProfilePicture = null;
+  }
+  
+  onProfilePictureSelected(event: any) {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      this.selectedProfilePicture = file;
+    }
   }
 
   createPost() {
     if (this.newPostContent.trim()) {
-      this.checkForMentions(this.newPostContent);
-      const newPost: Post = {
-        id: Date.now().toString(),
-        author: this.profileName,
-        content: this.newPostContent,
-        timestamp: 'Just now',
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        liked: false,
-        media: this.selectedFile ? URL.createObjectURL(this.selectedFile) : undefined,
-        mediaType: this.selectedFileType as 'image' | 'video' | undefined,
-        commentsList: [],
-        visibility: this.postVisibility as 'public' | 'followers'
-      };
-      this.feedService.addPost(newPost);
-      this.newPostContent = '';
-      this.selectedFile = null;
-      this.selectedFileType = '';
-      this.postVisibility = 'public';
-      this.setActiveTab('feed');
+      if (this.selectedFile) {
+        console.log('Creating post with file:', this.selectedFile.name, this.selectedFile.type);
+        const formData = new FormData();
+        formData.append('content', this.newPostContent);
+        formData.append('file', this.selectedFile);
+        
+        this.postService.createPostWithFile(formData).subscribe({
+          next: (response) => {
+            console.log('Post with file created:', response);
+            this.resetPostForm();
+          },
+          error: (error) => {
+            console.error('Error creating post with file:', error);
+          }
+        });
+      } else {
+        console.log('Creating text-only post');
+        const postData = {
+          content: this.newPostContent,
+          imageUrl: ''
+        };
+        
+        this.postService.createPost(postData).subscribe({
+          next: (response) => {
+            console.log('Text post created:', response);
+            this.resetPostForm();
+          },
+          error: (error) => {
+            console.error('Error creating post:', error);
+          }
+        });
+      }
     }
+  }
+  
+  resetPostForm() {
+    this.newPostContent = '';
+    this.selectedFile = null;
+    this.selectedFileType = '';
+    this.selectedFilePreview = null;
+    this.postVisibility = 'public';
+    // Clear file input
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+    this.setActiveTab('feed');
+    setTimeout(() => {
+      this.loadFeeds();
+      this.loadUserProfile();
+    }, 500);
   }
 
   onFileSelected(event: any) {
@@ -159,35 +271,79 @@ export class DashboardComponent implements OnInit {
       } else if (file.type.startsWith('video/')) {
         this.selectedFileType = 'video';
       }
+      
+      // Create base64 preview instead of blob URL
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.selectedFilePreview = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
     }
   }
 
   likePost(post: any) {
-    post.liked = !post.liked;
-    post.likes += post.liked ? 1 : -1;
+    this.postService.toggleLike(post.id).subscribe({
+      next: (response) => {
+        post.likesCount = response.likesCount;
+        post.isLiked = response.isLiked;
+      },
+      error: (error) => {
+        console.error('Error toggling like:', error);
+      }
+    });
   }
 
   commentPost(post: any) {
     this.showComments[post.id] = !this.showComments[post.id];
-    this.selectedPostId = this.showComments[post.id] ? post.id : null;
+    if (!post.commentsList) {
+      post.commentsList = [];
+    }
+    if (this.showComments[post.id]) {
+      this.postService.getComments(post.id).subscribe({
+        next: (comments) => {
+          post.commentsList = comments;
+        },
+        error: (error) => {
+          console.error('Error loading comments:', error);
+        }
+      });
+    }
   }
 
   sharePost(post: any) {
     const shareData = {
       title: 'RevHub Post',
-      text: `Check out this post by ${post.author}: ${post.content}`,
+      text: `Check out this post by ${post.author.username}: ${post.content}`,
       url: window.location.href
     };
 
     if (navigator.share) {
       navigator.share(shareData).then(() => {
-        post.shares += 1;
+        this.postService.sharePost(post.id).subscribe({
+          next: (response) => {
+            post.sharesCount = response.sharesCount;
+          },
+          error: (error) => {
+            console.error('Error updating share count:', error);
+          }
+        });
       }).catch((error) => {
         console.log('Error sharing:', error);
-        this.fallbackShare(post);
       });
     } else {
-      this.fallbackShare(post);
+      // Fallback for browsers that don't support Web Share API
+      const text = `Check out this post by ${post.author.username}: ${post.content}`;
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(whatsappUrl, '_blank');
+      
+      this.postService.sharePost(post.id).subscribe({
+        next: (response) => {
+          post.sharesCount = response.sharesCount;
+        },
+        error: (error) => {
+          console.error('Error updating share count:', error);
+        }
+      });
     }
   }
 
@@ -206,25 +362,67 @@ export class DashboardComponent implements OnInit {
 
   addComment(post: any) {
     if (this.newComment.trim()) {
-      const comment = {
-        id: Date.now(),
-        author: this.profileName,
-        content: this.newComment,
-        timestamp: 'Just now'
-      };
-      post.commentsList.push(comment);
-      post.comments = post.commentsList.length;
-      this.newComment = '';
+      this.postService.addComment(post.id, this.newComment).subscribe({
+        next: (response) => {
+          if (!post.commentsList) {
+            post.commentsList = [];
+          }
+          post.commentsList.push(response);
+          post.commentsCount = post.commentsList.length;
+          this.newComment = '';
+        },
+        error: (error) => {
+          console.error('Error adding comment:', error);
+        }
+      });
     }
   }
 
   deleteComment(post: any, commentId: number) {
-    post.commentsList = post.commentsList.filter((c: any) => c.id !== commentId);
-    post.comments = post.commentsList.length;
+    console.log('Delete comment clicked:', commentId, 'from post:', post.id);
+    this.commentToDelete = { post, commentId };
+    this.showDeleteCommentConfirm = true;
+  }
+
+  confirmDeleteComment() {
+    if (this.commentToDelete) {
+      const { post, commentId } = this.commentToDelete;
+      console.log('Deleting comment:', commentId, 'from post:', post.id);
+      this.postService.deleteComment(post.id, commentId).subscribe({
+        next: (response) => {
+          console.log('Comment deleted successfully:', response);
+          // Reload comments from backend to ensure UI is in sync
+          this.postService.getComments(post.id).subscribe({
+            next: (comments) => {
+              post.commentsList = comments;
+              post.commentsCount = comments.length;
+            },
+            error: (error) => {
+              console.error('Error reloading comments:', error);
+            }
+          });
+          this.showDeleteCommentConfirm = false;
+          this.commentToDelete = null;
+        },
+        error: (error) => {
+          console.error('Error deleting comment:', error);
+          console.error('Error details:', error.error);
+          console.error('Error status:', error.status);
+          console.error('Failed to delete comment:', error.error || error.message);
+          this.showDeleteCommentConfirm = false;
+          this.commentToDelete = null;
+        }
+      });
+    }
+  }
+
+  cancelDeleteComment() {
+    this.showDeleteCommentConfirm = false;
+    this.commentToDelete = null;
   }
 
   canDeleteComment(comment: any, post: any): boolean {
-    return comment.author === this.profileName || post.author === this.profileName;
+    return comment.author?.username === this.currentUser?.username || post.author?.username === this.currentUser?.username;
   }
 
   replyToComment(post: any, comment: any) {
@@ -255,18 +453,12 @@ export class DashboardComponent implements OnInit {
     this.replyContent = '';
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: Event) {
-    const target = event.target as HTMLElement;
-    if (!target.closest('.comment-section') && !target.closest('.comment-btn')) {
-      this.showComments = {};
-      this.selectedPostId = null;
-    }
-  }
+
 
   followUser(user: any) {
-    this.followingList.push(user);
-    this.suggestedUsers = this.suggestedUsers.filter(u => u.name !== user.name);
+    if (!this.followingList.some(f => f.username === user.username)) {
+      this.followingList.push({...user});
+    }
   }
 
   followFromList(user: any) {
@@ -280,7 +472,7 @@ export class DashboardComponent implements OnInit {
   }
 
   isFollowing(user: any): boolean {
-    return this.followingList.some(f => f.name === user.name);
+    return this.followingList.some(f => f.username === user.username);
   }
 
   closeSuggestions() {
@@ -310,7 +502,7 @@ export class DashboardComponent implements OnInit {
   }
 
   get userPosts() {
-    return this.posts.filter(post => post.author === this.profileName);
+    return this.userPostsData.length > 0 ? this.userPostsData : this.posts.filter(post => post.author === this.profileName);
   }
 
   searchQuery = '';
@@ -334,12 +526,12 @@ export class DashboardComponent implements OnInit {
     { name: 'Rohit', username: 'rohit_code', followers: 456 },
     { name: 'Neha', username: 'neha_music', followers: 678 }
   ];
-  suggestedUsers = [
-    { name: 'Vikram', username: 'vikram_dev', bio: 'Full Stack Developer', followers: 432 },
-    { name: 'Shreya', username: 'shreya_design', bio: 'UI/UX Designer', followers: 298 },
-    { name: 'Aditya', username: 'aditya_tech', bio: 'Tech Enthusiast', followers: 156 }
-  ];
+  suggestedUsers: any[] = [];
   showSuggestions = true;
+  showDeleteConfirm = false;
+  postToDelete: any = null;
+  showDeleteCommentConfirm = false;
+  commentToDelete: { post: any, commentId: number } | null = null;
   notifications = [
     {
       id: 1,
@@ -364,12 +556,29 @@ export class DashboardComponent implements OnInit {
     }
   ];
   
-  get followersCount() {
-    return this.followersList.length;
-  }
-  
-  get followingCount() {
-    return this.followingList.length;
+  loadUserProfile() {
+    if (this.currentUser?.username) {
+      this.profileService.getProfile(this.currentUser.username).subscribe({
+        next: (profile) => {
+          this.userProfile = profile;
+          this.followersCount = profile.followersCount || 0;
+          this.followingCount = profile.followingCount || 0;
+        },
+        error: (error) => {
+          console.error('Error loading user profile:', error);
+        }
+      });
+      
+      // Load user posts
+      this.profileService.getUserPosts(this.currentUser.username).subscribe({
+        next: (posts) => {
+          this.userPostsData = posts;
+        },
+        error: (error) => {
+          console.error('Error loading user posts:', error);
+        }
+      });
+    }
   }
   
   get filteredUsers() {
@@ -426,6 +635,41 @@ export class DashboardComponent implements OnInit {
   get postsCount() {
     return this.userPosts.length;
   }
+  
+  deleteUserPost(post: any) {
+    this.postToDelete = post;
+    this.showDeleteConfirm = true;
+  }
+
+  confirmDelete() {
+    if (this.postToDelete) {
+      const postId = this.postToDelete.id;
+      
+      // Immediately update UI
+      this.userPostsData = this.userPostsData.filter(p => p.id !== postId);
+      this.posts = this.posts.filter(p => p.id !== postId);
+      this.showDeleteConfirm = false;
+      this.postToDelete = null;
+      
+      // Then call backend
+      this.postService.deletePost(postId).subscribe({
+        next: () => {
+          console.log('Post deleted successfully');
+        },
+        error: (error) => {
+          console.error('Error deleting post:', error);
+          // Reload posts if backend delete failed
+          this.loadFeeds();
+          this.loadUserProfile();
+        }
+      });
+    }
+  }
+
+  cancelDelete() {
+    this.showDeleteConfirm = false;
+    this.postToDelete = null;
+  }
 
   showFollowers() {
     this.showFollowersList = true;
@@ -440,6 +684,22 @@ export class DashboardComponent implements OnInit {
   hideUserLists() {
     this.showFollowersList = false;
     this.showFollowingList = false;
+  }
+
+  togglePrivacy() {
+    if (this.userProfile) {
+      const newPrivacySetting = !this.userProfile.isPrivate;
+      this.profileService.updateProfile({ isPrivate: newPrivacySetting.toString() }).subscribe({
+        next: (updatedUser) => {
+          if (this.userProfile) {
+            this.userProfile.isPrivate = newPrivacySetting;
+          }
+        },
+        error: (error) => {
+          console.error('Error updating privacy setting:', error);
+        }
+      });
+    }
   }
 
   checkForMentions(content: string) {
@@ -462,5 +722,26 @@ export class DashboardComponent implements OnInit {
       read: false
     };
     this.notifications.unshift(notification);
+  }
+  
+  loadSuggestedUsers() {
+    this.profileService.getAllUsers().subscribe({
+      next: (users) => {
+        this.suggestedUsers = users.filter(user => user.username !== this.currentUser?.username).slice(0, 5);
+      },
+      error: (error) => {
+        console.error('Error loading suggested users:', error);
+      }
+    });
+  }
+  
+  isVideo(url: string): boolean {
+    if (!url) return false;
+    return url.startsWith('data:video/') || url.includes('.mp4') || url.includes('.webm') || url.includes('.ogg') || url.includes('.mov') || (url.startsWith('blob:') && this.selectedFileType === 'video');
+  }
+  
+  isImage(url: string): boolean {
+    if (!url) return false;
+    return url.startsWith('data:image/') || url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.gif') || url.includes('.webp') || (url.startsWith('blob:') && this.selectedFileType === 'image');
   }
 }

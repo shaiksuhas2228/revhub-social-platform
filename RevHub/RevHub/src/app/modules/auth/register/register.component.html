@@ -4,17 +4,47 @@
     <div class="card" *ngIf="showForm">
       <div class="card-body">
         <h3 class="card-title text-center mb-4">Register</h3>
-        <form>
+        <form (ngSubmit)="onSubmit()">
           <div class="mb-3">
-            <input type="text" class="form-control" placeholder="Full Name">
+            <input 
+              type="text" 
+              class="form-control" 
+              placeholder="Username" 
+              [(ngModel)]="registerData.username"
+              name="username"
+              required>
           </div>
           <div class="mb-3">
-            <input type="email" class="form-control" placeholder="Email">
+            <input 
+              type="email" 
+              class="form-control" 
+              placeholder="Email" 
+              [(ngModel)]="registerData.email"
+              name="email"
+              required>
           </div>
           <div class="mb-3">
-            <input type="password" class="form-control" placeholder="Password">
+            <input 
+              type="password" 
+              class="form-control" 
+              placeholder="Password" 
+              [(ngModel)]="registerData.password"
+              name="password"
+              required>
           </div>
-          <button type="submit" class="btn btn-primary w-100">Register</button>
+          <div class="mb-3" *ngIf="errorMessage">
+            <div class="alert alert-danger">{{errorMessage}}</div>
+          </div>
+          <div class="mb-3" *ngIf="successMessage">
+            <div class="alert alert-success">{{successMessage}}</div>
+          </div>
+          <button 
+            type="submit" 
+            class="btn btn-primary w-100" 
+            [disabled]="isLoading || !registerData.username || !registerData.email || !registerData.password">
+            <span *ngIf="isLoading" class="spinner-border spinner-border-sm me-2"></span>
+            {{isLoading ? 'Registering...' : 'Register'}}
+          </button>
         </form>
         <div class="text-center mt-3">
           <a routerLink="/auth/login">Already have an account? Login</a>

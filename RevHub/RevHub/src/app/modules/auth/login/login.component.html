@@ -4,14 +4,35 @@
     <div class="card" *ngIf="showForm">
       <div class="card-body">
         <h3 class="card-title text-center mb-4">Login</h3>
-        <form>
+        <form (ngSubmit)="onSubmit()">
           <div class="mb-3">
-            <input type="email" class="form-control" placeholder="Email" value="admin@revhub.com">
+            <input 
+              type="text" 
+              class="form-control" 
+              placeholder="Username" 
+              [(ngModel)]="loginData.username"
+              name="username"
+              required>
           </div>
           <div class="mb-3">
-            <input type="password" class="form-control" placeholder="Password" value="admin123">
+            <input 
+              type="password" 
+              class="form-control" 
+              placeholder="Password" 
+              [(ngModel)]="loginData.password"
+              name="password"
+              required>
           </div>
-          <a class="btn btn-primary w-100" routerLink="/dashboard">Login</a>
+          <div class="mb-3" *ngIf="errorMessage">
+            <div class="alert alert-danger">{{errorMessage}}</div>
+          </div>
+          <button 
+            type="submit" 
+            class="btn btn-primary w-100" 
+            [disabled]="isLoading || !loginData.username || !loginData.password">
+            <span *ngIf="isLoading" class="spinner-border spinner-border-sm me-2"></span>
+            {{isLoading ? 'Logging in...' : 'Login'}}
+          </button>
         </form>
         <div class="text-center mt-3">
           <a routerLink="/auth/register">Don't have an account? Register</a>
