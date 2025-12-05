@@ -19,55 +19,23 @@ pipeline {
             }
         }
         
-        stage('Build Backend') {
+        stage('Build & Deploy') {
             steps {
-                dir('revHubBack') {
-                    bat 'mvn clean package -DskipTests'
-                }
-            }
-        }
-        
-        stage('Build Frontend') {
-            steps {
-                dir('RevHub/RevHub') {
-                    bat 'npm install'
-                    bat 'npm run build'
-                }
-            }
-        }
-        
-        stage('Build Docker Images') {
-            parallel {
-                stage('Backend Image') {
-                    steps {
-                        dir('revHubBack') {
-                            bat 'docker build -t revhub-backend .'
-                        }
-                    }
-                }
-                stage('Frontend Image') {
-                    steps {
-                        dir('RevHub/RevHub') {
-                            bat 'docker build -t revhub-frontend .'
-                        }
-                    }
-                }
-            }
-        }
-        
-        stage('Deploy Applications') {
-            steps {
+                bat 'docker build -t revhub-backend ./revHubBack'
+                bat 'docker build -t revhub-frontend ./RevHub/RevHub'
                 bat 'docker rm -f backend frontend || echo "No containers to remove"'
                 bat 'docker run -d --name backend --env-file backend.env.properties -p 8080:8080 revhub-backend'
                 bat 'docker run -d --name frontend -p 4200:80 revhub-frontend'
             }
         }
         
+
+        
         stage('Health Check') {
             steps {
                 script {
                     sleep(30)
-                    bat 'curl -f http://localhost:8080/actuator/health || echo "Backend health check failed"'
+                    bat 'curl -f http://localhost:8080 || echo "Backend health check failed"'
                     bat 'curl -f http://localhost:4200 || echo "Frontend health check failed"'
                 }
             }
@@ -77,16 +45,7 @@ pipeline {
     post {
         always {
             script {
-                try {
-                    archiveArtifacts artifacts: 'revHubBack/target/*.jar', fingerprint: true
-                } catch (Exception e) {
-                    echo 'No backend artifacts to archive'
-                }
-                try {
-                    archiveArtifacts artifacts: 'RevHub/RevHub/dist/**/*', fingerprint: true
-                } catch (Exception e) {
-                    echo 'No frontend artifacts to archive'
-                }
+                echo 'Build completed'
             }
         }
         success {
