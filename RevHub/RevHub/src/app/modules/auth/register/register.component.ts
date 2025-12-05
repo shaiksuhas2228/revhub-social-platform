@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterModule, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -11,11 +11,7 @@ import { AuthService, RegisterRequest } from '../../../core/services/auth.servic
   templateUrl: './register.component.html',
   styleUrl: './register.component.css'
 })
-export class RegisterComponent implements OnInit {
-  displayText = '';
-  fullText = 'RevHub';
-  showForm = false;
-  
+export class RegisterComponent {
   registerData: RegisterRequest = {
     username: '',
     email: '',
@@ -31,24 +27,6 @@ export class RegisterComponent implements OnInit {
     private router: Router
   ) {}
   
-  ngOnInit() {
-    this.typeText();
-  }
-  
-  typeText() {
-    let i = 0;
-    const interval = setInterval(() => {
-      this.displayText = this.fullText.substring(0, i + 1);
-      i++;
-      if (i >= this.fullText.length) {
-        clearInterval(interval);
-        setTimeout(() => {
-          this.showForm = true;
-        }, 500);
-      }
-    }, 300);
-  }
-  
   onSubmit() {
     if (this.registerData.username && this.registerData.email && this.registerData.password) {
       this.isLoading = true;
@@ -58,9 +36,9 @@ export class RegisterComponent implements OnInit {
       this.authService.register(this.registerData).subscribe({
         next: (response) => {
           this.isLoading = false;
-          this.successMessage = 'Registration successful! Please login.';
+          this.successMessage = 'Registration successful! Please check your email for OTP.';
           setTimeout(() => {
-            this.router.navigate(['/auth/login']);
+            this.router.navigate(['/auth/verify-otp'], { queryParams: { email: this.registerData.email } });
           }, 2000);
         },
         error: (error) => {

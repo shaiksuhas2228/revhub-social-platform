@@ -13,6 +13,7 @@ public class EmailService {
     public void sendPasswordResetEmail(String to, String token) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
+        message.setFrom("doddakarthikreddy11122@gmail.com");
         message.setSubject("RevHub - Password Reset Request");
         message.setText("Hello,\n\nYou requested a password reset for your RevHub account.\n\n" +
                 "Click the link below to reset your password:\n" +

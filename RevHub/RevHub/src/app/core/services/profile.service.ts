@@ -44,6 +44,42 @@ export class ProfileService {
     return this.http.put<User>(this.apiUrl, updates);
   }
   
+  updateProfileWithFile(formData: FormData): Observable<User> {
+    const profileData: any = {};
+    
+    // If no file, just send other data
+    if (!formData.has('profilePicture') || !(formData.get('profilePicture') instanceof File)) {
+      formData.forEach((value, key) => {
+        profileData[key] = value;
+      });
+      return this.http.put<User>(this.apiUrl, profileData);
+    }
+    
+    // Handle file upload with base64 conversion
+    return new Observable<User>(observer => {
+      const file = formData.get('profilePicture') as File;
+      const reader = new FileReader();
+      
+      formData.forEach((value, key) => {
+        if (key !== 'profilePicture') {
+          profileData[key] = value;
+        }
+      });
+      
+      reader.onload = () => {
+        profileData.profilePicture = reader.result as string;
+        this.http.put<User>(this.apiUrl, profileData).subscribe({
+          next: result => {
+            observer.next(result);
+            observer.complete();
+          },
+          error: err => observer.error(err)
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  
   getAllUsers(): Observable<User[]> {
     return this.http.get<User[]>(`${this.apiUrl}/all`);
   }

@@ -35,6 +35,9 @@ public class PostService {
     private NotificationMongoService notificationService;
     
     @Autowired
+    private NotificationService notificationServiceSQL;
+    
+    @Autowired
     private FollowRepository followRepository;
 
     public Page<Post> getUniversalPosts(Pageable pageable) {
@@ -55,6 +58,9 @@ public class PostService {
         List<Long> followingIds = following.stream()
             .map(User::getId)
             .collect(java.util.stream.Collectors.toList());
+        
+        // Add current user's ID to see their own posts in followers feed
+        followingIds.add(currentUser.getId());
         
         return postRepository.findFollowersPosts(currentUser.getId(), followingIds, pageable);
     }
@@ -105,6 +111,7 @@ public class PostService {
         
         Post savedPost = postRepository.save(post);
         
+        System.out.println("Processing mentions for post: " + savedPost.getContent());
         processMentions(savedPost, author);
         
         return savedPost;
@@ -127,22 +134,26 @@ public class PostService {
         
         List<Post> userPosts = postRepository.findByAuthorOrderByCreatedDateDesc(user);
         
-        if (currentUsername == null || !currentUsername.equals(username)) {
-            User currentUser = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
-            
-            boolean isFollowing = false;
-            if (currentUser != null) {
-                List<User> following = followRepository.findFollowing(currentUser);
-                isFollowing = following.stream().anyMatch(u -> u.getId().equals(user.getId()));
-            }
-            
-            return userPosts.stream()
-                .filter(post -> post.getVisibility() == com.example.revHubBack.entity.PostVisibility.PUBLIC || 
-                               (currentUser != null && isFollowing))
-                .collect(java.util.stream.Collectors.toList());
+        // If viewing own posts, return all posts regardless of visibility
+        if (currentUsername != null && currentUsername.equals(username)) {
+            return userPosts;
         }
         
-        return userPosts;
+        // For other users, filter based on visibility and following status
+        User currentUser = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
+        
+        final boolean isFollowing;
+        if (currentUser != null) {
+            List<User> following = followRepository.findFollowing(currentUser);
+            isFollowing = following.stream().anyMatch(u -> u.getId().equals(user.getId()));
+        } else {
+            isFollowing = false;
+        }
+        
+        return userPosts.stream()
+            .filter(post -> post.getVisibility() == com.example.revHubBack.entity.PostVisibility.PUBLIC || 
+                           (currentUser != null && isFollowing))
+            .collect(java.util.stream.Collectors.toList());
     }
     
     public Post savePost(Post post) {
@@ -201,7 +212,7 @@ public class PostService {
     public List<Comment> getComments(Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
-        return commentRepository.findByPostOrderByCreatedDateDesc(post);
+        return commentRepository.findByPostAndParentCommentIsNullOrderByCreatedDateDesc(post);
     }
 
     public void deleteComment(Long postId, Long commentId, String username) {
@@ -247,20 +258,56 @@ public class PostService {
     
     private void processMentions(Post post, User author) {
         String content = post.getContent();
-        if (content == null) return;
+        System.out.println("Processing mentions - Content: " + content);
         
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("@(\\w+)");
+        if (content == null || content.trim().isEmpty()) {
+            System.out.println("Content is null or empty, skipping mentions");
+            return;
+        }
+        
+        // Updated regex pattern to properly match @username
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("@([a-zA-Z0-9_]+)");
         java.util.regex.Matcher matcher = pattern.matcher(content);
         
+        java.util.Set<String> processedUsers = new java.util.HashSet<>();
+        boolean foundMentions = false;
+        
         while (matcher.find()) {
+            foundMentions = true;
             String mentionedUsername = matcher.group(1);
+            System.out.println("Found mention: @" + mentionedUsername);
+            
+            // Avoid duplicate notifications for the same user
+            if (processedUsers.contains(mentionedUsername)) {
+                System.out.println("Skipping duplicate mention for: " + mentionedUsername);
+                continue;
+            }
+            processedUsers.add(mentionedUsername);
+            
             try {
                 User mentionedUser = userRepository.findByUsername(mentionedUsername).orElse(null);
-                if (mentionedUser != null && !mentionedUser.getId().equals(author.getId())) {
-                    notificationService.createMentionNotification(mentionedUser, author, post.getId(), content);
+                if (mentionedUser != null) {
+                    System.out.println("Found user: " + mentionedUser.getUsername() + " (ID: " + mentionedUser.getId() + ")");
+                    if (!mentionedUser.getId().equals(author.getId())) {
+                        System.out.println("Creating mention notification for: " + mentionedUsername);
+                        // Create notification in both MongoDB and SQL
+                        notificationService.createMentionNotification(mentionedUser, author, post.getId(), content);
+                        notificationServiceSQL.createMentionNotification(mentionedUser, author, post.getId());
+                        System.out.println("Mention notification created successfully");
+                    } else {
+                        System.out.println("Skipping self-mention for: " + mentionedUsername);
+                    }
+                } else {
+                    System.out.println("User not found: " + mentionedUsername);
                 }
             } catch (Exception e) {
+                System.err.println("Error processing mention for user: " + mentionedUsername + ", Error: " + e.getMessage());
+                e.printStackTrace();
             }
+        }
+        
+        if (!foundMentions) {
+            System.out.println("No mentions found in content: " + content);
         }
     }
 }

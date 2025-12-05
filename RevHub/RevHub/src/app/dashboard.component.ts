@@ -20,6 +20,7 @@ import { NotificationService, Notification } from './core/services/notification.
 export class DashboardComponent implements OnInit {
   activeTab = 'feed';
   feedType = 'universal';
+  activeFeedType = 'universal';
   currentPage = 0;
   hasMorePosts = true;
   isLoading = false;
@@ -84,24 +85,34 @@ export class DashboardComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    console.log('🚀 Dashboard component initializing...');
+    
     this.themeService.isDarkTheme$.subscribe(isDark => {
       this.isDarkTheme = isDark;
     });
     
     // Load current user data
     this.currentUser = this.authService.getCurrentUser();
+    console.log('👤 Current user from auth service:', this.currentUser);
+    
     if (this.currentUser) {
+      console.log('✅ User authenticated, loading profile data...');
       this.profileName = this.currentUser.username;
       this.profileUsername = this.currentUser.username;
       this.loadUserProfile();
+      
+      // Load MongoDB notifications and chat data
+      console.log('📱 Loading notifications and chat data...');
+      this.loadNotifications();
+    } else {
+      console.error('❌ No authenticated user found!');
     }
     
-    this.loadFeeds();
-    this.loadSuggestedUsers();
-    // Load MongoDB notifications
-    if (this.currentUser) {
-      this.loadNotifications();
+    // Only load feeds if activeTab is 'feed'
+    if (this.activeTab === 'feed') {
+      this.loadFeeds();
     }
+    this.loadSuggestedUsers();
   }
 
   loadFeeds() {
@@ -124,6 +135,30 @@ export class DashboardComponent implements OnInit {
     this.feedType = type;
     this.loadFeeds();
   }
+  
+  switchFeed(feedType: string) {
+    this.activeFeedType = feedType;
+    this.feedType = feedType;
+    this.currentPage = 0;
+    this.posts = [];
+    this.loadFeedsByType(feedType);
+  }
+  
+  loadFeedsByType(feedType: string) {
+    this.isLoading = true;
+    this.postService.getPosts(0, 10, feedType).subscribe({
+      next: (response) => {
+        this.posts = response.content || [];
+        this.currentPage = response.number || 0;
+        this.hasMorePosts = (response.number || 0) < (response.totalPages || 0) - 1;
+        this.isLoading = false;
+      },
+      error: (error) => {
+        this.posts = [];
+        this.isLoading = false;
+      }
+    });
+  }
 
   loadMorePosts() {
     if (this.isLoading || !this.hasMorePosts || this.feedType === 'universal') return;
@@ -142,22 +177,35 @@ export class DashboardComponent implements OnInit {
   }
 
   setActiveTab(tab: string) {
+    console.log('📱 Switching to tab:', tab);
+    
+    // Immediately set the active tab to prevent flashing
     this.activeTab = tab;
-    if (tab === 'feed') {
-      this.showSuggestions = true;
-      this.loadFeeds();
-    } else if (tab === 'notifications') {
-      this.loadNotifications();
-    } else if (tab === 'chat') {
-      // Load following list for chat search if not already loaded
-      if (this.followingList.length === 0) {
-        this.loadFollowing();
+    
+    // Use setTimeout to ensure UI updates properly
+    setTimeout(() => {
+      if (tab === 'feed') {
+        this.showSuggestions = true;
+        this.loadFeeds();
+      } else if (tab === 'profile') {
+        console.log('👤 Loading profile tab...');
+        this.loadUserProfile();
+      } else if (tab === 'notifications') {
+        console.log('🔔 Loading notifications tab...');
+        this.loadNotifications();
+      } else if (tab === 'chat') {
+        console.log('💬 Loading chat tab...');
+        // Load following list for chat search if not already loaded
+        if (this.followingList.length === 0) {
+          console.log('👥 Loading following list for chat...');
+          this.loadFollowing();
+        }
+        // Load previous chat contacts
+        this.loadChatContacts();
+        // Refresh unread counts
+        setTimeout(() => this.refreshUnreadCounts(), 500);
       }
-      // Load previous chat contacts
-      this.loadChatContacts();
-      // Refresh unread counts
-      setTimeout(() => this.refreshUnreadCounts(), 500);
-    }
+    }, 0);
   }
 
   toggleTheme() {
@@ -170,21 +218,17 @@ export class DashboardComponent implements OnInit {
   }
 
   saveProfile() {
-    const updates: any = {};
-    
-    if (this.editBio !== (this.userProfile?.bio || '')) {
-      updates.bio = this.editBio;
-    }
-    
     if (this.selectedProfilePicture) {
-      // Convert image to base64 for simple storage
-      const reader = new FileReader();
-      reader.onload = () => {
-        updates.profilePicture = reader.result as string;
-        this.updateProfile(updates);
-      };
-      reader.readAsDataURL(this.selectedProfilePicture);
-    } else if (Object.keys(updates).length > 0) {
+      // Use FormData for file upload
+      const formData = new FormData();
+      formData.append('profilePicture', this.selectedProfilePicture);
+      if (this.editBio !== (this.userProfile?.bio || '')) {
+        formData.append('bio', this.editBio);
+      }
+      this.updateProfileWithFile(formData);
+    } else if (this.editBio !== (this.userProfile?.bio || '')) {
+      // Only bio update
+      const updates = { bio: this.editBio };
       this.updateProfile(updates);
     } else {
       this.isEditingProfile = false;
@@ -200,6 +244,26 @@ export class DashboardComponent implements OnInit {
       },
       error: (error) => {
         console.error('Error updating profile:', error);
+      }
+    });
+  }
+  
+  updateProfileWithFile(formData: FormData) {
+    this.profileService.updateProfileWithFile(formData).subscribe({
+      next: (updatedUser) => {
+        this.loadUserProfile(); // Reload profile data
+        this.isEditingProfile = false;
+        this.selectedProfilePicture = null;
+      },
+      error: (error) => {
+        console.error('Error updating profile with file:', error);
+        // Fallback to just bio update if file upload fails
+        if (this.editBio !== (this.userProfile?.bio || '')) {
+          const updates = { bio: this.editBio };
+          this.updateProfile(updates);
+        } else {
+          this.isEditingProfile = false;
+        }
       }
     });
   }
@@ -219,9 +283,35 @@ export class DashboardComponent implements OnInit {
 
   createPost() {
     if (this.newPostContent.trim()) {
+      // Combine content with hashtags and location
+      let finalContent = this.newPostContent;
+      
+      // Add hashtags to content if provided
+      if (this.hashtagInput.trim()) {
+        const hashtags = this.hashtagInput.split(',').map(tag => tag.trim()).filter(tag => tag);
+        const hashtagString = hashtags.map(tag => tag.startsWith('#') ? tag : `#${tag}`).join(' ');
+        finalContent += ' ' + hashtagString;
+      }
+      
+      // Add location to content if provided
+      if (this.locationTag.trim()) {
+        finalContent += ` 📍 ${this.locationTag}`;
+      }
+      
+      // Add poll options to content if provided
+      if (this.showPollCreation && this.pollOptions.some(option => option.trim())) {
+        const validOptions = this.pollOptions.filter(option => option.trim());
+        if (validOptions.length >= 2) {
+          finalContent += '\n\n📊 Poll:';
+          validOptions.forEach((option, index) => {
+            finalContent += `\n${index + 1}. ${option}`;
+          });
+        }
+      }
+      
       if (this.selectedFile) {
         const formData = new FormData();
-        formData.append('content', this.newPostContent);
+        formData.append('content', finalContent);
         formData.append('file', this.selectedFile);
         
         this.postService.createPostWithFile(formData).subscribe({
@@ -234,7 +324,7 @@ export class DashboardComponent implements OnInit {
         });
       } else {
         const postData = {
-          content: this.newPostContent,
+          content: finalContent,
           imageUrl: ''
         };
         
@@ -252,10 +342,15 @@ export class DashboardComponent implements OnInit {
   
   resetPostForm() {
     this.newPostContent = '';
+    this.hashtagInput = '';
     this.selectedFile = null;
     this.selectedFileType = '';
     this.selectedFilePreview = null;
     this.postVisibility = 'public';
+    this.showPollCreation = false;
+    this.showLocationTag = false;
+    this.pollOptions = ['', ''];
+    this.locationTag = '';
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
     this.setActiveTab('feed');
@@ -546,6 +641,7 @@ export class DashboardComponent implements OnInit {
           content: msg.content,
           timestamp: new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
         }));
+        console.log('Loaded conversation with', username, ':', messages.length, 'messages');
       },
       error: (error) => {
         console.error('Error loading conversation:', error);
@@ -556,8 +652,12 @@ export class DashboardComponent implements OnInit {
 
   sendMessage() {
     if (this.newMessage.trim() && this.selectedChat) {
-      this.chatService.sendMessage(this.selectedChat, this.newMessage).subscribe({
+      const messageContent = this.newMessage.trim();
+      console.log('Sending message to', this.selectedChat, ':', messageContent);
+      
+      this.chatService.sendMessage(this.selectedChat, messageContent).subscribe({
         next: (message) => {
+          console.log('Message sent successfully:', message);
           if (!this.messages[this.selectedChat!]) {
             this.messages[this.selectedChat!] = [];
           }
@@ -570,6 +670,7 @@ export class DashboardComponent implements OnInit {
         },
         error: (error) => {
           console.error('Error sending message:', error);
+          alert('Failed to send message. Please try again.');
         }
       });
     }
@@ -802,34 +903,37 @@ export class DashboardComponent implements OnInit {
   }
 
   loadNotifications() {
+    console.log('🔔 Loading notifications for user:', this.currentUser?.username);
+    console.log('🔔 Current user object:', this.currentUser);
+    
+    if (!this.currentUser) {
+      console.error('❌ No current user found for loading notifications');
+      return;
+    }
+    
     this.notificationService.getNotifications().subscribe({
       next: (notifications) => {
-        console.log('Notifications loaded successfully:', notifications);
+        console.log('✅ Notifications loaded successfully:', notifications.length, 'notifications');
+        console.log('📋 Notifications list:', notifications);
         this.notifications = notifications;
+        
+        // Load unread count
+        this.notificationService.getUnreadCount().subscribe({
+          next: (count) => {
+            console.log('📊 Unread notification count loaded:', count);
+            this.unreadNotificationCount = count;
+          },
+          error: (error) => {
+            console.error('❌ Error loading unread notification count:', error);
+            this.unreadNotificationCount = 0;
+          }
+        });
       },
       error: (error) => {
-        console.error('Error loading notifications:', {
-          status: error.status,
-          statusText: error.statusText,
-          url: error.url,
-          message: error.message
-        });
+        console.error('❌ Error loading notifications:', error);
+        console.error('❌ Error details:', error.error);
+        console.error('❌ Status:', error.status);
         this.notifications = [];
-      }
-    });
-    
-    this.notificationService.getUnreadCount().subscribe({
-      next: (count) => {
-        console.log('Unread count loaded:', count);
-        this.unreadNotificationCount = count;
-      },
-      error: (error) => {
-        console.error('Error loading unread count:', {
-          status: error.status,
-          statusText: error.statusText,
-          url: error.url,
-          message: error.message
-        });
         this.unreadNotificationCount = 0;
       }
     });
@@ -1043,10 +1147,33 @@ export class DashboardComponent implements OnInit {
       return;
     }
     
-    // Search from following list
+    // Load following list if not already loaded
+    if (this.followingList.length === 0) {
+      this.loadFollowing();
+    }
+    
+    console.log('Searching for:', this.chatSearchQuery);
+    console.log('Following list:', this.followingList.length, 'users');
+    
+    // Search from following list (people you follow)
     this.chatSearchResults = this.followingList.filter(user => 
-      user.username.toLowerCase().includes(this.chatSearchQuery.toLowerCase())
+      user.username.toLowerCase().includes(this.chatSearchQuery.toLowerCase()) ||
+      (user.bio && user.bio.toLowerCase().includes(this.chatSearchQuery.toLowerCase()))
     );
+    
+    console.log('Search results:', this.chatSearchResults.length, 'found');
+  }
+  
+  loadFollowingForChat() {
+    console.log('Loading following list for chat...');
+    this.loadFollowing();
+    // Show a sample search to demonstrate
+    setTimeout(() => {
+      if (this.followingList.length > 0) {
+        this.chatSearchQuery = this.followingList[0].username.substring(0, 2);
+        this.onChatSearchInput();
+      }
+    }, 1000);
   }
   
   startChat(user: any) {
@@ -1061,27 +1188,169 @@ export class DashboardComponent implements OnInit {
   }
   
   loadChatContacts() {
+    console.log('🔍 Loading chat contacts for user:', this.currentUser?.username);
+    console.log('🔍 Current user object:', this.currentUser);
+    
+    if (!this.currentUser) {
+      console.error('❌ No current user found for loading chat contacts');
+      return;
+    }
+    
     this.chatService.getChatContacts().subscribe({
       next: (contacts) => {
-        console.log('Chat contacts loaded:', contacts);
+        console.log('✅ Chat contacts loaded successfully:', contacts.length, 'contacts');
+        console.log('📋 Contacts list:', contacts);
         this.contacts = contacts;
+        
         // Load unread counts for each contact
         contacts.forEach(contact => {
           this.chatService.getUnreadCount(contact).subscribe({
             next: (count) => {
-              console.log(`Unread count for ${contact}: ${count}`);
+              console.log(`📊 Unread count for ${contact}: ${count}`);
               this.unreadCounts[contact] = count;
             },
             error: (error) => {
-              console.error(`Error loading unread count for ${contact}:`, error);
+              console.error(`❌ Error loading unread count for ${contact}:`, error);
               this.unreadCounts[contact] = 0;
             }
           });
         });
       },
       error: (error) => {
-        console.error('Error loading chat contacts:', error);
+        console.error('❌ Error loading chat contacts:', error);
+        console.error('❌ Error details:', error.error);
+        console.error('❌ Status:', error.status);
+        this.contacts = [];
       }
     });
+  }
+
+  // New methods for enhanced UI functionality
+  hashtagInput = '';
+  showPollCreation = false;
+  showLocationTag = false;
+  pollOptions = ['', ''];
+  locationTag = '';
+
+  togglePollCreation() {
+    this.showPollCreation = !this.showPollCreation;
+    if (this.showPollCreation) {
+      this.pollOptions = ['', ''];
+    }
+  }
+
+  toggleLocationTag() {
+    this.showLocationTag = !this.showLocationTag;
+    if (!this.showLocationTag) {
+      this.locationTag = '';
+    }
+  }
+
+  addPollOption() {
+    if (this.pollOptions.length < 4) {
+      this.pollOptions.push('');
+    }
+  }
+
+  removePollOption(index: number) {
+    if (this.pollOptions.length > 2) {
+      this.pollOptions.splice(index, 1);
+    }
+  }
+
+  updatePollOption(index: number, event: any) {
+    this.pollOptions[index] = event.target.value;
+  }
+
+  trackByIndex(index: number, item: any): number {
+    return index;
+  }
+
+  removeSelectedFile() {
+    this.selectedFile = null;
+    this.selectedFileType = '';
+    this.selectedFilePreview = null;
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+  }
+
+  clearPost() {
+    this.newPostContent = '';
+    this.hashtagInput = '';
+    this.removeSelectedFile();
+    this.showPollCreation = false;
+    this.showLocationTag = false;
+    this.pollOptions = ['', ''];
+    this.locationTag = '';
+    this.postVisibility = 'public';
+  }
+
+  getNotificationIcon(type: string): string {
+    switch (type) {
+      case 'FOLLOW_REQUEST': return 'fa-user-plus';
+      case 'FOLLOW': return 'fa-user-check';
+      case 'LIKE': return 'fa-heart';
+      case 'COMMENT': return 'fa-comment';
+      case 'MENTION': return 'fa-at';
+      case 'MESSAGE': return 'fa-envelope';
+      default: return 'fa-bell';
+    }
+  }
+
+  getNotificationIconBg(type: string): string {
+    switch (type) {
+      case 'FOLLOW_REQUEST': return 'rgba(139, 92, 246, 0.8)';
+      case 'FOLLOW': return 'rgba(16, 185, 129, 0.8)';
+      case 'LIKE': return 'rgba(239, 68, 68, 0.8)';
+      case 'COMMENT': return 'rgba(74, 144, 226, 0.8)';
+      case 'MENTION': return 'rgba(245, 158, 11, 0.8)';
+      case 'MESSAGE': return 'rgba(139, 92, 246, 0.8)';
+      default: return 'rgba(107, 114, 128, 0.8)';
+    }
+  }
+
+  getNotificationTitle(type: string): string {
+    switch (type) {
+      case 'FOLLOW_REQUEST': return 'Follow Request';
+      case 'FOLLOW': return 'New Follower';
+      case 'LIKE': return 'Post Liked';
+      case 'COMMENT': return 'New Comment';
+      case 'MENTION': return 'You were mentioned';
+      case 'MESSAGE': return 'New Message';
+      default: return 'Notification';
+    }
+  }
+
+  getTotalLikes(): number {
+    return this.userPosts.reduce((total, post) => total + (post.likesCount || 0), 0);
+  }
+
+  getTotalComments(): number {
+    return this.userPosts.reduce((total, post) => total + (post.commentsCount || 0), 0);
+  }
+
+  getTotalShares(): number {
+    return this.userPosts.reduce((total, post) => total + (post.sharesCount || 0), 0);
+  }
+
+  // New profile tab functionality
+  profileActiveTab = 'posts';
+
+  setProfileTab(tab: string) {
+    this.profileActiveTab = tab;
+  }
+
+  getRecentActivity(): any[] {
+    const activities: any[] = [];
+    
+    this.userPosts.slice(0, 3).forEach(post => {
+      activities.push({
+        icon: 'fa-plus-circle',
+        text: 'Posted a new update',
+        date: post.createdDate
+      });
+    });
+    
+    return activities.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
   }
 }

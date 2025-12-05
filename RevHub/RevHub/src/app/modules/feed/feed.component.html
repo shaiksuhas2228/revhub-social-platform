@@ -1,23 +1,21 @@
 <div class="row">
   <div class="col-md-8 mx-auto">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-      <h2 class="mb-0">Feed</h2>
-      <div style="display: flex;">
-        <button 
-          style="padding: 8px 16px; margin-right: 8px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px;"
-          [style.background]="activeFeedType === 'universal' ? '#007bff' : 'white'"
-          [style.color]="activeFeedType === 'universal' ? 'white' : '#333'"
-          (click)="switchFeed('universal')">
-          Universal
-        </button>
-        <button 
-          style="padding: 8px 16px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px;"
-          [style.background]="activeFeedType === 'followers' ? '#007bff' : 'white'"
-          [style.color]="activeFeedType === 'followers' ? 'white' : '#333'"
-          (click)="switchFeed('followers')">
-          Following
-        </button>
-      </div>
+    <h2 class="mb-4">Feed</h2>
+    
+    <!-- Feed Filter Buttons -->
+    <div class="d-flex justify-content-center mb-4">
+      <button class="btn btn-primary me-3" 
+              [class.btn-primary]="activeFeedType === 'universal'"
+              [class.btn-outline-primary]="activeFeedType !== 'universal'"
+              (click)="switchFeed('universal')">
+        🌍 Universal Feed
+      </button>
+      <button class="btn btn-primary" 
+              [class.btn-primary]="activeFeedType === 'followers'"
+              [class.btn-outline-primary]="activeFeedType !== 'followers'"
+              (click)="switchFeed('followers')">
+        👥 Following Feed
+      </button>
     </div>
     
     <div *ngIf="isLoading" class="text-center">
@@ -26,35 +24,7 @@
       </div>
     </div>
     
-    <div class="card mb-3" *ngFor="let post of posts">
-      <div class="card-body">
-        <div class="d-flex align-items-center mb-3">
-          <img [src]="post.author.profilePicture || 'default.jpg'" class="rounded-circle me-3" alt="Avatar" style="width: 40px; height: 40px; object-fit: cover;">
-          <div>
-            <h6 class="mb-0">{{post.author.username}}</h6>
-            <small class="text-muted">{{post.createdDate | date:'MMM d, y'}}</small>
-          </div>
-        </div>
-        <p class="card-text">{{post.content}}</p>
-        <img *ngIf="post.imageUrl" [src]="post.imageUrl" class="img-fluid mb-3" alt="Post image">
-        
-        <div class="d-flex justify-content-between text-muted small mb-2">
-          <span>{{post.likesCount}} likes • {{post.commentsCount}} comments • {{post.sharesCount}} shares</span>
-        </div>
-        
-        <div class="d-flex gap-3">
-          <button class="btn btn-sm btn-outline-primary" (click)="likePost(post)">
-            <i class="fas fa-heart"></i> Like
-          </button>
-          <button class="btn btn-sm btn-outline-secondary">
-            <i class="fas fa-comment"></i> Comment
-          </button>
-          <button class="btn btn-sm btn-outline-info" (click)="sharePost(post)">
-            <i class="fas fa-share"></i> Share
-          </button>
-        </div>
-      </div>
-    </div>
+    <app-post-card *ngFor="let post of posts" [post]="post"></app-post-card>
     
     <div *ngIf="posts.length === 0 && !isLoading" class="text-center text-muted">
       <p>No posts available. Create your first post!</p>

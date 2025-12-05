@@ -36,6 +36,8 @@ public class Notification {
     private User fromUser;
 
     private Long followRequestId;
+    
+    private Long postId;
 
     @CreationTimestamp
     private LocalDateTime createdDate;

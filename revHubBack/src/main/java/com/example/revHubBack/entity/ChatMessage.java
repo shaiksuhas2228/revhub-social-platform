@@ -9,7 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Document(collection = "chat_messages")
+@Document(collection = "chatMessage")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -23,6 +23,6 @@ public class ChatMessage {
     private String receiverUsername;
     private String content;
     private LocalDateTime timestamp;
-    private boolean isRead = false;
+    private boolean read = false;
     private String messageType = "TEXT"; // TEXT, IMAGE, FILE
 }

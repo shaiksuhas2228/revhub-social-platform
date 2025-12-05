@@ -27,7 +27,24 @@ public class CommentService {
     public List<Comment> getCommentsByPost(Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
-        return commentRepository.findByPostOrderByCreatedDateDesc(post);
+        return commentRepository.findByPostAndParentCommentIsNullOrderByCreatedDateDesc(post);
+    }
+
+    @Transactional
+    public Comment addReply(Long commentId, CommentRequest commentRequest, String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        Comment parentComment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new RuntimeException("Comment not found"));
+
+        Comment reply = new Comment();
+        reply.setContent(commentRequest.getContent());
+        reply.setAuthor(user);
+        reply.setPost(parentComment.getPost());
+        reply.setParentComment(parentComment);
+
+        return commentRepository.save(reply);
     }
 
     @Transactional

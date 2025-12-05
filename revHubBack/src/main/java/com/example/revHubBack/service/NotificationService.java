@@ -53,4 +53,16 @@ public class NotificationService {
         notification.setMessage(fromUser.getUsername() + " started following you");
         notificationRepository.save(notification);
     }
+
+    public void createMentionNotification(User mentionedUser, User mentioner, Long postId) {
+        System.out.println("NotificationService: Creating mention notification for " + mentionedUser.getUsername() + " from " + mentioner.getUsername());
+        Notification notification = new Notification();
+        notification.setUser(mentionedUser);
+        notification.setFromUser(mentioner);
+        notification.setType("MENTION");
+        notification.setMessage(mentioner.getUsername() + " mentioned you in a post");
+        notification.setPostId(postId);
+        Notification saved = notificationRepository.save(notification);
+        System.out.println("NotificationService: Mention notification saved with ID: " + saved.getId());
+    }
 }

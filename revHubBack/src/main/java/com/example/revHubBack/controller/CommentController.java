@@ -39,6 +39,18 @@ public class CommentController {
         }
     }
 
+    @PostMapping("/comments/{commentId}/replies")
+    public ResponseEntity<Comment> addReply(@PathVariable Long commentId,
+                                          @Valid @RequestBody CommentRequest commentRequest,
+                                          Authentication authentication) {
+        try {
+            Comment reply = commentService.addReply(commentId, commentRequest, authentication.getName());
+            return ResponseEntity.ok(reply);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
     @DeleteMapping("/{postId}/comments/{commentId}")
     public ResponseEntity<Void> deleteComment(@PathVariable Long postId, 
                                             @PathVariable Long commentId,

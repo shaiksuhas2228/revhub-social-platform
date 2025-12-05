@@ -1,7 +1,7 @@
 import { Component, Input, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Post } from '../../../core/services/post.service';
+import { Post, PostService } from '../../../core/services/post.service';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
@@ -27,7 +27,7 @@ export class PostCardComponent {
   commentSuggestions: any[] = [];
   selectedCommentSuggestionIndex = -1;
   
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService, private postService: PostService) {}
   
   isVideo(mediaType?: string): boolean {
     return mediaType === 'video' || mediaType?.startsWith('video/');
@@ -51,6 +51,41 @@ export class PostCardComponent {
   
   toggleComments() {
     this.showComments = !this.showComments;
+    console.log('Comments toggled:', this.showComments);
+    if (this.showComments && this.comments.length === 0) {
+      this.loadComments();
+      // Add a test comment if no comments exist
+      if (this.comments.length === 0) {
+        this.addTestComment();
+      }
+    }
+  }
+
+  addTestComment() {
+    const testComment = {
+      id: 999,
+      content: 'This is a test comment to show reply functionality',
+      author: { 
+        id: 1, 
+        username: 'testuser', 
+        profilePicture: null 
+      },
+      createdDate: new Date().toISOString(),
+      replies: []
+    };
+    this.comments.push(this.initializeComment(testComment));
+    console.log('Added test comment:', this.comments);
+  }
+
+  loadComments() {
+    this.postService.getComments(this.post.id).subscribe({
+      next: (comments) => {
+        console.log('Loaded comments:', comments);
+        this.comments = comments.map(comment => this.initializeComment(comment));
+        console.log('Initialized comments:', this.comments);
+      },
+      error: (error) => console.error('Error loading comments:', error)
+    });
   }
   
   onCommentKeyUp(event: KeyboardEvent) {
@@ -141,18 +176,14 @@ export class PostCardComponent {
   
   addComment() {
     if (this.newComment.trim()) {
-      const comment = {
-        id: Date.now(),
-        content: this.newComment,
-        author: { username: 'current_user', profilePicture: null },
-        createdDate: new Date(),
-        showReplyForm: false,
-        replyText: '',
-        replies: []
-      };
-      this.comments.unshift(comment);
-      this.newComment = '';
-      this.post.commentsCount++;
+      this.postService.addComment(this.post.id, this.newComment).subscribe({
+        next: (comment) => {
+          this.comments.unshift(this.initializeComment(comment));
+          this.newComment = '';
+          this.post.commentsCount++;
+        },
+        error: (error) => console.error('Error adding comment:', error)
+      });
     }
   }
   
@@ -169,13 +200,14 @@ export class PostCardComponent {
   }
   
   toggleReply(commentIndex: number) {
+    console.log('Toggle reply for comment:', commentIndex);
     const comment = this.comments[commentIndex];
-    if (!comment.showReplyForm) {
-      comment.showReplyForm = false;
+    comment.showReplyForm = !comment.showReplyForm;
+    console.log('Reply form shown:', comment.showReplyForm);
+    if (comment.showReplyForm) {
       comment.replyText = '';
       comment.replies = comment.replies || [];
     }
-    comment.showReplyForm = !comment.showReplyForm;
   }
   
   cancelReply(commentIndex: number) {
@@ -188,20 +220,18 @@ export class PostCardComponent {
   addReply(commentIndex: number) {
     const comment = this.comments[commentIndex];
     if (comment.replyText?.trim()) {
-      const reply = {
-        id: Date.now(),
-        content: comment.replyText,
-        author: { username: 'current_user', profilePicture: null },
-        createdDate: new Date()
-      };
-      
-      if (!comment.replies) {
-        comment.replies = [];
-      }
-      comment.replies.push(reply);
-      comment.replyText = '';
-      comment.showReplyForm = false;
-      this.hideReplySuggestions(commentIndex);
+      this.postService.addReply(comment.id, comment.replyText).subscribe({
+        next: (reply) => {
+          if (!comment.replies) {
+            comment.replies = [];
+          }
+          comment.replies.push(reply);
+          comment.replyText = '';
+          comment.showReplyForm = false;
+          this.hideReplySuggestions(commentIndex);
+        },
+        error: (error) => console.error('Error adding reply:', error)
+      });
     }
   }
   

@@ -29,6 +29,7 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Lob
     private String profilePicture;
     private String bio;
     
@@ -39,6 +40,8 @@ public class User {
     private Boolean isVerified = false;
     
     private String verificationToken;
+    
+
 
     @CreationTimestamp
     private LocalDateTime createdDate;

@@ -9,4 +9,14 @@ export const routes: Routes = [
     loadChildren: () =>
       import('./modules/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
+  {
+    path: 'chat',
+    loadChildren: () =>
+      import('./modules/chat/chat.routes').then((m) => m.CHAT_ROUTES),
+  },
+  {
+    path: 'notifications',
+    loadChildren: () =>
+      import('./modules/notifications/notif.routes').then((m) => m.NOTIFICATION_ROUTES),
+  },
 ];

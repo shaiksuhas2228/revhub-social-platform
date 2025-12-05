@@ -46,13 +46,17 @@ public class ChatService {
     }
     
     public List<ChatMessage> getConversation(String username1, String username2) {
-        User user1 = userRepository.findByUsername(username1)
-                .orElseThrow(() -> new RuntimeException("User1 not found"));
-        
-        User user2 = userRepository.findByUsername(username2)
-                .orElseThrow(() -> new RuntimeException("User2 not found"));
-        
-        return chatMessageRepository.findConversation(user1.getId().toString(), user2.getId().toString());
+        try {
+            User user1 = userRepository.findByUsername(username1)
+                    .orElseThrow(() -> new RuntimeException("User1 not found"));
+            
+            User user2 = userRepository.findByUsername(username2)
+                    .orElseThrow(() -> new RuntimeException("User2 not found"));
+            
+            return chatMessageRepository.findConversation(user1.getId().toString(), user2.getId().toString());
+        } catch (Exception e) {
+            return new java.util.ArrayList<>();
+        }
     }
     
     public void markMessagesAsRead(String receiverUsername, String senderUsername) {
@@ -74,16 +78,29 @@ public class ChatService {
     }
     
     public List<String> getChatContacts(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        List<ChatMessage> messages = chatMessageRepository.findChatContactsRaw(user.getId().toString());
-        
-        return messages.stream()
-            .flatMap(msg -> java.util.stream.Stream.of(msg.getSenderUsername(), msg.getReceiverUsername()))
-            .filter(contactUsername -> !contactUsername.equals(username))
-            .distinct()
-            .collect(java.util.stream.Collectors.toList());
+        try {
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            
+            // Get all messages involving this user
+            List<ChatMessage> messages = chatMessageRepository.findAllUserChats(user.getId().toString());
+            
+            // Extract unique contact usernames
+            java.util.Set<String> contactSet = new java.util.HashSet<>();
+            for (ChatMessage msg : messages) {
+                if (!msg.getSenderUsername().equals(username)) {
+                    contactSet.add(msg.getSenderUsername());
+                }
+                if (!msg.getReceiverUsername().equals(username)) {
+                    contactSet.add(msg.getReceiverUsername());
+                }
+            }
+            
+            return new java.util.ArrayList<>(contactSet);
+        } catch (Exception e) {
+            System.out.println("Error getting chat contacts: " + e.getMessage());
+            return new java.util.ArrayList<>();
+        }
     }
     
     private void createMessageNotification(User receiver, User sender, String content) {

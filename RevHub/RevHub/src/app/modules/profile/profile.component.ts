@@ -25,6 +25,9 @@ export class ProfileComponent implements OnInit {
   commentToDelete: { post: any, commentId: number } | null = null;
   followStatus: string = 'NOT_FOLLOWING';
   isFollowLoading = false;
+  activeTab: string = 'posts';
+  followers: any[] = [];
+  followingList: any[] = [];
 
   constructor(
     private profileService: ProfileService,
@@ -224,5 +227,63 @@ export class ProfileComponent implements OnInit {
     } else if (this.followStatus === 'NOT_FOLLOWING') {
       this.followUser();
     }
+  }
+
+  setActiveTab(tab: string) {
+    this.activeTab = tab;
+    if (tab === 'followers' && this.followers.length === 0) {
+      this.loadFollowers();
+    }
+    if (tab === 'following' && this.followingList.length === 0) {
+      this.loadFollowing();
+    }
+  }
+
+  getTotalLikes(): number {
+    return this.posts.reduce((total, post) => total + (post.likesCount || 0), 0);
+  }
+
+  getTotalComments(): number {
+    return this.posts.reduce((total, post) => total + (post.commentsCount || 0), 0);
+  }
+
+  getRecentActivity(): any[] {
+    const activities = [];
+    
+    // Add recent posts
+    this.posts.slice(0, 3).forEach(post => {
+      activities.push({
+        icon: 'fa-plus-circle',
+        text: 'Posted a new update',
+        date: post.createdDate
+      });
+    });
+    
+    // Sort by date and return latest 5
+    return activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+  }
+
+  loadFollowers() {
+    this.profileService.getFollowers(this.username).subscribe({
+      next: (followers) => {
+        this.followers = followers;
+      },
+      error: (error) => {
+        console.error('Error loading followers:', error);
+        this.followers = [];
+      }
+    });
+  }
+
+  loadFollowing() {
+    this.profileService.getFollowing(this.username).subscribe({
+      next: (following) => {
+        this.followingList = following;
+      },
+      error: (error) => {
+        console.error('Error loading following:', error);
+        this.followingList = [];
+      }
+    });
   }
 }

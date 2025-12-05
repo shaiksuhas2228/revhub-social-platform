@@ -24,6 +24,9 @@ export class UserProfileComponent implements OnInit {
   canViewPosts = false;
   showComments: { [key: number]: boolean } = {};
   newComment = '';
+  activeTab: string = 'posts';
+  followers: any[] = [];
+  followingList: any[] = [];
 
   constructor(
     private route: ActivatedRoute,
@@ -227,5 +230,63 @@ export class UserProfileComponent implements OnInit {
         }
       });
     }
+  }
+
+  setActiveTab(tab: string) {
+    this.activeTab = tab;
+    if (tab === 'followers' && this.followers.length === 0) {
+      this.loadFollowers();
+    }
+    if (tab === 'following' && this.followingList.length === 0) {
+      this.loadFollowing();
+    }
+  }
+
+  getTotalLikes(): number {
+    return this.userPosts.reduce((total, post) => total + (post.likesCount || 0), 0);
+  }
+
+  getTotalComments(): number {
+    return this.userPosts.reduce((total, post) => total + (post.commentsCount || 0), 0);
+  }
+
+  getRecentActivity(): any[] {
+    const activities: any[] = [];
+    
+    this.userPosts.slice(0, 3).forEach(post => {
+      activities.push({
+        icon: 'fa-plus-circle',
+        text: 'Posted a new update',
+        date: post.createdDate
+      });
+    });
+    
+    return activities.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+  }
+
+  loadFollowers() {
+    if (!this.user) return;
+    this.profileService.getFollowers(this.user.username).subscribe({
+      next: (followers) => {
+        this.followers = followers;
+      },
+      error: (error) => {
+        console.error('Error loading followers:', error);
+        this.followers = [];
+      }
+    });
+  }
+
+  loadFollowing() {
+    if (!this.user) return;
+    this.profileService.getFollowing(this.user.username).subscribe({
+      next: (following) => {
+        this.followingList = following;
+      },
+      error: (error) => {
+        console.error('Error loading following:', error);
+        this.followingList = [];
+      }
+    });
   }
 }

@@ -8,6 +8,6 @@ public class MongoConfig extends AbstractMongoClientConfiguration {
     
     @Override
     protected String getDatabaseName() {
-        return "revhub";
+        return "revhubteam4";
     }
 }

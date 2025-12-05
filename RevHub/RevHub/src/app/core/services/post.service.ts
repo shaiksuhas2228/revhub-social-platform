@@ -113,6 +113,10 @@ export class PostService {
   deleteComment(postId: number, commentId: number): Observable<any> {
     return this.http.delete(`${this.apiUrl}/${postId}/comments/${commentId}`);
   }
+
+  addReply(commentId: number, content: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/comments/${commentId}/replies`, { content });
+  }
   
   searchPosts(query: string): Observable<Post[]> {
     return this.http.get<Post[]>(`${this.apiUrl}/search?query=${encodeURIComponent(query)}`);
@@ -128,4 +132,6 @@ export interface Comment {
     profilePicture?: string;
   };
   createdDate: string;
+  replies?: Comment[];
+  parentComment?: Comment;
 }

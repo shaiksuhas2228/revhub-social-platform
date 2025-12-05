@@ -123,5 +123,17 @@ public class PostController {
             return ResponseEntity.ok(new ArrayList<>());
         }
     }
+    
+    @PostMapping("/test-mention")
+    public ResponseEntity<String> testMention(@RequestParam String content, Authentication authentication) {
+        try {
+            System.out.println("Testing mention with content: " + content);
+            Post post = postService.createPost(content, null, authentication.getName(), "PUBLIC");
+            return ResponseEntity.ok("Post created with ID: " + post.getId() + ". Check console for mention processing logs.");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        }
+    }
 
 }

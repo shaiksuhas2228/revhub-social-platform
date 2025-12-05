@@ -112,6 +112,7 @@ public class NotificationMongoService {
     }
     
     public void createMentionNotification(User mentionedUser, User mentioner, Long postId, String content) {
+        System.out.println("NotificationMongoService: Creating mention notification for " + mentionedUser.getUsername() + " from " + mentioner.getUsername());
         NotificationMongo notification = new NotificationMongo();
         notification.setUserId(mentionedUser.getId().toString());
         notification.setFromUserId(mentioner.getId().toString());
@@ -122,7 +123,8 @@ public class NotificationMongoService {
         notification.setPostId(postId);
         notification.setCreatedDate(LocalDateTime.now());
         
-        notificationRepository.save(notification);
+        NotificationMongo saved = notificationRepository.save(notification);
+        System.out.println("NotificationMongoService: Mention notification saved with ID: " + saved.getId());
     }
     
     public void deleteNotification(String notificationId, String username) {
