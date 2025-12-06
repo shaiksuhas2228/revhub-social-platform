@@ -57,6 +57,8 @@ pipeline {
         
         stage('Deploy Containers') {
             steps {
+                echo 'Ensuring Docker network exists...'
+                bat 'docker network create revhub-network 2>nul || echo "Network exists"'
                 echo 'Starting backend on port 8080...'
                 bat 'docker run -d --name backend --network revhub-network --env-file backend.env.properties -p 8080:8080 revhub-backend'
                 echo 'Starting frontend on port 4200...'
@@ -121,7 +123,7 @@ pipeline {
             }
         }
         cleanup {
-            bat 'docker system prune -f || echo "Cleanup done"'
+            bat 'docker system prune -f --volumes || echo "Cleanup done"'
         }
     }
 }
