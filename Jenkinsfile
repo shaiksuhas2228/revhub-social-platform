@@ -2,8 +2,6 @@ pipeline {
     agent any
     
     environment {
-        MYSQL_ROOT_PASSWORD = 'root'
-        MYSQL_DATABASE = 'revhubteam7'
         MONGO_URI = 'mongodb://host.docker.internal:27017/revhubteam4'
         GITHUB_REPO = 'https://github.com/shaiksuhas2228/revhub-social-platform.git'
     }
@@ -22,12 +20,11 @@ pipeline {
         stage('Setup Databases') {
             steps {
                 script {
-                    echo 'Setting up MySQL...'
-                    bat 'docker ps -a | findstr mysql-revhub && docker start mysql-revhub || docker run -d --name mysql-revhub -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=revhubteam7 -p 3307:3306 mysql:8.0'
                     echo 'Setting up MongoDB...'
                     bat 'docker ps -a | findstr mongo-revhub && docker start mongo-revhub || docker run -d --name mongo-revhub -p 27017:27017 mongo:latest'
-                    echo 'Waiting for databases to be ready...'
+                    echo 'Waiting for MongoDB to be ready...'
                     sleep(15)
+                    echo 'Using host MySQL on port 3306'
                 }
             }
         }
@@ -88,7 +85,7 @@ pipeline {
             echo '========================================'
             echo 'Frontend: http://localhost:4200'
             echo 'Backend: http://localhost:8080'
-            echo 'MySQL: localhost:3307 (revhubteam7)'
+            echo 'MySQL: localhost:3306 (user: root, pass: root, db: revhubteam7)'
             echo 'MongoDB: localhost:27017 (revhubteam4)'
             echo '========================================'
         }
