@@ -49,12 +49,12 @@ public class ChatController {
     }
     
     @PostMapping("/mark-read/{username}")
-    public ResponseEntity<String> markAsRead(@PathVariable String username, Authentication authentication) {
+    public ResponseEntity<Map<String, String>> markAsRead(@PathVariable String username, Authentication authentication) {
         try {
             chatService.markMessagesAsRead(authentication.getName(), username);
-            return ResponseEntity.ok("Messages marked as read");
+            return ResponseEntity.ok(Map.of("message", "Messages marked as read"));
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
     

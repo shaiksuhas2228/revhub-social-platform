@@ -1,0 +1,3 @@
+@echo off
+echo Checking backend logs for chat errors...
+docker logs backend --tail 100 | findstr /i "chat error exception"
