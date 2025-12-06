@@ -88,7 +88,7 @@ pipeline {
             echo '========================================'
             echo 'Frontend: http://localhost:4200'
             echo 'Backend: http://localhost:8080'
-            echo 'MySQL: localhost:3306 (revhubteam7)'
+            echo 'MySQL: localhost:3307 (revhubteam7)'
             echo 'MongoDB: localhost:27017 (revhubteam4)'
             echo '========================================'
         }
