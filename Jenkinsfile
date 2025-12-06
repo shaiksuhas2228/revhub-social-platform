@@ -25,7 +25,7 @@ pipeline {
                     echo 'Setting up MySQL...'
                     bat 'docker ps -a | findstr mysql-revhub && docker start mysql-revhub || docker run -d --name mysql-revhub -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=revhubteam7 -p 3307:3306 mysql:8.0'
                     echo 'Setting up MongoDB...'
-                    bat 'docker ps | findstr mongo-revhub || docker start mongo-revhub || echo "MongoDB already running"'
+                    bat 'docker ps -a | findstr mongo-revhub && docker start mongo-revhub || docker run -d --name mongo-revhub -p 27017:27017 mongo:latest'
                     echo 'Waiting for databases to be ready...'
                     sleep(15)
                 }
@@ -62,9 +62,9 @@ pipeline {
                     echo 'Waiting for services to start...'
                     sleep(30)
                     echo 'Checking backend health...'
-                    bat 'curl -f http://localhost:8080/actuator/health || echo "Backend starting..."'
+                    bat 'curl -s http://localhost:8080 || echo "Backend starting..."'
                     echo 'Checking frontend health...'
-                    bat 'curl -f http://localhost:4200 || echo "Frontend starting..."'
+                    bat 'curl -s http://localhost:4200 || echo "Frontend starting..."'
                 }
             }
         }
