@@ -19,8 +19,10 @@ pipeline {
         stage('Setup Databases') {
             steps {
                 script {
+                    echo 'Creating Docker network...'
+                    bat 'docker network create revhub-network 2>nul || echo "Network exists"'
                     echo 'Setting up MongoDB...'
-                    bat 'docker ps -a | findstr mongo-revhub && docker start mongo-revhub || docker run -d --name mongo-revhub -p 27017:27017 mongo:latest'
+                    bat 'docker ps -a | findstr mongo-revhub && docker start mongo-revhub || docker run -d --name mongo-revhub --network revhub-network -p 27017:27017 mongo:latest'
                     echo 'Waiting for MongoDB to be ready...'
                     sleep(20)
                     echo 'Initializing MongoDB collections...'
@@ -55,7 +57,7 @@ pipeline {
         stage('Deploy Containers') {
             steps {
                 echo 'Starting backend on port 8080...'
-                bat 'docker run -d --name backend --env-file backend.env.properties -p 8080:8080 revhub-backend'
+                bat 'docker run -d --name backend --network revhub-network --env-file backend.env.properties -p 8080:8080 revhub-backend'
                 echo 'Starting frontend on port 4200...'
                 bat 'docker run -d --name frontend -p 4200:80 revhub-frontend'
             }
