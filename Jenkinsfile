@@ -19,12 +19,15 @@ pipeline {
             }
         }
         
-        stage('Verify Databases') {
+        stage('Setup Databases') {
             steps {
                 script {
-                    echo 'Checking MySQL and MongoDB...'
-                    bat 'docker ps | findstr mysql || echo "MySQL not running"'
-                    bat 'docker ps | findstr mongo || echo "MongoDB not running"'
+                    echo 'Setting up MySQL...'
+                    bat 'docker ps -a | findstr mysql-revhub && docker start mysql-revhub || docker run -d --name mysql-revhub -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=revhubteam7 -p 3307:3306 mysql:8.0'
+                    echo 'Setting up MongoDB...'
+                    bat 'docker ps | findstr mongo-revhub || docker start mongo-revhub || echo "MongoDB already running"'
+                    echo 'Waiting for databases to be ready...'
+                    bat 'timeout /t 15'
                 }
             }
         }
@@ -90,10 +93,12 @@ pipeline {
             echo '========================================'
         }
         failure {
-            bat 'docker logs backend --tail 100 || echo "No backend logs"'
-            bat 'docker logs frontend --tail 100 || echo "No frontend logs"'
-            bat 'docker rm -f backend frontend || echo "No containers to stop"'
-            echo 'Pipeline failed! Check logs above.'
+            script {
+                bat 'docker logs backend --tail 100 || echo "No backend logs"'
+                bat 'docker logs frontend --tail 100 || echo "No frontend logs"'
+                bat 'docker rm -f backend frontend || echo "No containers to stop"'
+                echo 'Pipeline failed! Check logs above.'
+            }
         }
         cleanup {
             bat 'docker system prune -f || echo "Cleanup done"'
