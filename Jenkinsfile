@@ -27,7 +27,7 @@ pipeline {
                     echo 'Setting up MongoDB...'
                     bat 'docker ps | findstr mongo-revhub || docker start mongo-revhub || echo "MongoDB already running"'
                     echo 'Waiting for databases to be ready...'
-                    bat 'timeout /t 15'
+                    sleep(15)
                 }
             }
         }
@@ -94,9 +94,21 @@ pipeline {
         }
         failure {
             script {
-                bat 'docker logs backend --tail 100 || echo "No backend logs"'
-                bat 'docker logs frontend --tail 100 || echo "No frontend logs"'
-                bat 'docker rm -f backend frontend || echo "No containers to stop"'
+                try {
+                    bat 'docker logs backend --tail 100'
+                } catch (Exception e) {
+                    echo 'No backend logs available'
+                }
+                try {
+                    bat 'docker logs frontend --tail 100'
+                } catch (Exception e) {
+                    echo 'No frontend logs available'
+                }
+                try {
+                    bat 'docker rm -f backend frontend'
+                } catch (Exception e) {
+                    echo 'No containers to stop'
+                }
                 echo 'Pipeline failed! Check logs above.'
             }
         }
