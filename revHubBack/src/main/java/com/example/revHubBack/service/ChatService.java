@@ -24,25 +24,40 @@ public class ChatService {
     private NotificationMongoService notificationService;
     
     public ChatMessage sendMessage(String senderUsername, String receiverUsername, String content) {
-        User sender = userRepository.findByUsername(senderUsername)
-                .orElseThrow(() -> new RuntimeException("Sender not found"));
-        
-        User receiver = userRepository.findByUsername(receiverUsername)
-                .orElseThrow(() -> new RuntimeException("Receiver not found"));
-        
-        ChatMessage message = new ChatMessage();
-        message.setSenderId(sender.getId().toString());
-        message.setSenderUsername(sender.getUsername());
-        message.setReceiverId(receiver.getId().toString());
-        message.setReceiverUsername(receiver.getUsername());
-        message.setContent(content);
-        message.setTimestamp(LocalDateTime.now());
-        
-        ChatMessage savedMessage = chatMessageRepository.save(message);
-        
-        createMessageNotification(receiver, sender, content);
-        
-        return savedMessage;
+        try {
+            System.out.println("ChatService: Sending message from " + senderUsername + " to " + receiverUsername);
+            
+            User sender = userRepository.findByUsername(senderUsername)
+                    .orElseThrow(() -> new RuntimeException("Sender not found: " + senderUsername));
+            
+            User receiver = userRepository.findByUsername(receiverUsername)
+                    .orElseThrow(() -> new RuntimeException("Receiver not found: " + receiverUsername));
+            
+            ChatMessage message = new ChatMessage();
+            message.setSenderId(sender.getId().toString());
+            message.setSenderUsername(sender.getUsername());
+            message.setReceiverId(receiver.getId().toString());
+            message.setReceiverUsername(receiver.getUsername());
+            message.setContent(content);
+            message.setTimestamp(LocalDateTime.now());
+            message.setRead(false);
+            
+            System.out.println("ChatService: Saving message to MongoDB...");
+            ChatMessage savedMessage = chatMessageRepository.save(message);
+            System.out.println("ChatService: Message saved with ID: " + savedMessage.getId());
+            
+            try {
+                createMessageNotification(receiver, sender, content);
+            } catch (Exception e) {
+                System.out.println("ChatService: Failed to create notification: " + e.getMessage());
+            }
+            
+            return savedMessage;
+        } catch (Exception e) {
+            System.out.println("ChatService: Error sending message: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to send message: " + e.getMessage());
+        }
     }
     
     public List<ChatMessage> getConversation(String username1, String username2) {

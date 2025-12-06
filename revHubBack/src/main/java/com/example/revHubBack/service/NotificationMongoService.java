@@ -21,11 +21,16 @@ public class NotificationMongoService {
     
     public List<NotificationMongo> getUserNotifications(String username) {
         try {
+            System.out.println("NotificationMongoService: Getting notifications for user: " + username);
             User user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new RuntimeException("User not found: " + username));
             
-            return notificationRepository.findByUserIdOrderByCreatedDateDesc(user.getId().toString());
+            List<NotificationMongo> notifications = notificationRepository.findByUserIdOrderByCreatedDateDesc(user.getId().toString());
+            System.out.println("NotificationMongoService: Found " + notifications.size() + " notifications");
+            return notifications;
         } catch (Exception e) {
+            System.out.println("NotificationMongoService: Error getting notifications: " + e.getMessage());
+            e.printStackTrace();
             return new java.util.ArrayList<>();
         }
     }
@@ -46,30 +51,46 @@ public class NotificationMongoService {
     }
     
     public void createFollowRequestNotification(User toUser, User fromUser, Long followRequestId) {
-        NotificationMongo notification = new NotificationMongo();
-        notification.setUserId(toUser.getId().toString());
-        notification.setFromUserId(fromUser.getId().toString());
-        notification.setFromUsername(fromUser.getUsername());
-        notification.setFromUserProfilePicture(fromUser.getProfilePicture());
-        notification.setType("FOLLOW_REQUEST");
-        notification.setMessage(fromUser.getUsername() + " wants to follow you");
-        notification.setFollowRequestId(followRequestId);
-        notification.setCreatedDate(LocalDateTime.now());
-        
-        notificationRepository.save(notification);
+        try {
+            System.out.println("NotificationMongoService: Creating follow request notification from " + fromUser.getUsername() + " to " + toUser.getUsername());
+            NotificationMongo notification = new NotificationMongo();
+            notification.setUserId(toUser.getId().toString());
+            notification.setFromUserId(fromUser.getId().toString());
+            notification.setFromUsername(fromUser.getUsername());
+            notification.setFromUserProfilePicture(fromUser.getProfilePicture());
+            notification.setType("FOLLOW_REQUEST");
+            notification.setMessage(fromUser.getUsername() + " wants to follow you");
+            notification.setFollowRequestId(followRequestId);
+            notification.setCreatedDate(LocalDateTime.now());
+            notification.setReadStatus(false);
+            
+            NotificationMongo saved = notificationRepository.save(notification);
+            System.out.println("NotificationMongoService: Follow request notification saved with ID: " + saved.getId());
+        } catch (Exception e) {
+            System.out.println("NotificationMongoService: Error creating follow request notification: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     public void createFollowNotification(User toUser, User fromUser) {
-        NotificationMongo notification = new NotificationMongo();
-        notification.setUserId(toUser.getId().toString());
-        notification.setFromUserId(fromUser.getId().toString());
-        notification.setFromUsername(fromUser.getUsername());
-        notification.setFromUserProfilePicture(fromUser.getProfilePicture());
-        notification.setType("FOLLOW");
-        notification.setMessage(fromUser.getUsername() + " started following you");
-        notification.setCreatedDate(LocalDateTime.now());
-        
-        notificationRepository.save(notification);
+        try {
+            System.out.println("NotificationMongoService: Creating follow notification from " + fromUser.getUsername() + " to " + toUser.getUsername());
+            NotificationMongo notification = new NotificationMongo();
+            notification.setUserId(toUser.getId().toString());
+            notification.setFromUserId(fromUser.getId().toString());
+            notification.setFromUsername(fromUser.getUsername());
+            notification.setFromUserProfilePicture(fromUser.getProfilePicture());
+            notification.setType("FOLLOW");
+            notification.setMessage(fromUser.getUsername() + " started following you");
+            notification.setCreatedDate(LocalDateTime.now());
+            notification.setReadStatus(false);
+            
+            NotificationMongo saved = notificationRepository.save(notification);
+            System.out.println("NotificationMongoService: Follow notification saved with ID: " + saved.getId());
+        } catch (Exception e) {
+            System.out.println("NotificationMongoService: Error creating follow notification: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     public long getUnreadCount(String username) {
@@ -142,16 +163,24 @@ public class NotificationMongoService {
     }
     
     public void createMessageNotification(User receiver, User sender, String content) {
-        NotificationMongo notification = new NotificationMongo();
-        notification.setUserId(receiver.getId().toString());
-        notification.setFromUserId(sender.getId().toString());
-        notification.setFromUsername(sender.getUsername());
-        notification.setFromUserProfilePicture(sender.getProfilePicture());
-        notification.setType("MESSAGE");
-        notification.setMessage(sender.getUsername() + " sent you a message: " + 
-            (content.length() > 30 ? content.substring(0, 30) + "..." : content));
-        notification.setCreatedDate(LocalDateTime.now());
-        
-        notificationRepository.save(notification);
+        try {
+            System.out.println("NotificationMongoService: Creating message notification from " + sender.getUsername() + " to " + receiver.getUsername());
+            NotificationMongo notification = new NotificationMongo();
+            notification.setUserId(receiver.getId().toString());
+            notification.setFromUserId(sender.getId().toString());
+            notification.setFromUsername(sender.getUsername());
+            notification.setFromUserProfilePicture(sender.getProfilePicture());
+            notification.setType("MESSAGE");
+            notification.setMessage(sender.getUsername() + " sent you a message: " + 
+                (content.length() > 30 ? content.substring(0, 30) + "..." : content));
+            notification.setCreatedDate(LocalDateTime.now());
+            notification.setReadStatus(false);
+            
+            NotificationMongo saved = notificationRepository.save(notification);
+            System.out.println("NotificationMongoService: Message notification saved with ID: " + saved.getId());
+        } catch (Exception e) {
+            System.out.println("NotificationMongoService: Error creating message notification: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

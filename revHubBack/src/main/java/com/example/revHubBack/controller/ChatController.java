@@ -20,12 +20,20 @@ public class ChatController {
     @PostMapping("/send")
     public ResponseEntity<ChatMessage> sendMessage(@RequestBody Map<String, String> request, Authentication authentication) {
         try {
-            String receiverUsername = request.get("receiverUsername");
+            String receiverUsername = request.get("receiver");
+            if (receiverUsername == null) {
+                receiverUsername = request.get("receiverUsername");
+            }
             String content = request.get("content");
+            
+            if (receiverUsername == null || content == null) {
+                return ResponseEntity.badRequest().build();
+            }
             
             ChatMessage message = chatService.sendMessage(authentication.getName(), receiverUsername, content);
             return ResponseEntity.ok(message);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
+            System.out.println("Chat send error: " + e.getMessage());
             return ResponseEntity.badRequest().build();
         }
     }
