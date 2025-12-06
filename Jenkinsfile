@@ -22,9 +22,11 @@ pipeline {
                     echo 'Setting up MongoDB...'
                     bat 'docker ps -a | findstr mongo-revhub && docker start mongo-revhub || docker run -d --name mongo-revhub -p 27017:27017 mongo:latest'
                     echo 'Waiting for MongoDB to be ready...'
-                    sleep(15)
+                    sleep(20)
                     echo 'Initializing MongoDB collections...'
-                    bat 'docker exec -i mongo-revhub mongosh revhubteam4 --eval "db.createCollection(\'chatMessage\'); db.createCollection(\'notificationMongo\'); db.chatMessage.createIndex({\'senderId\': 1, \'receiverId\': 1, \'timestamp\': -1}); db.notificationMongo.createIndex({\'userId\': 1, \'createdDate\': -1});" || echo "MongoDB init done"'
+                    bat 'docker exec mongo-revhub mongosh revhubteam4 --eval "db.createCollection(\'chatMessage\'); db.createCollection(\'notificationMongo\'); db.chatMessage.createIndex({\'senderId\': 1, \'receiverId\': 1, \'timestamp\': -1}); db.notificationMongo.createIndex({\'userId\': 1, \'createdDate\': -1});" || echo "MongoDB init done"'
+                    echo 'Verifying MongoDB connection...'
+                    bat 'docker exec mongo-revhub mongosh revhubteam4 --eval "db.stats()" || echo "MongoDB verification done"'
                     echo 'Using host MySQL on port 3306'
                 }
             }
@@ -41,7 +43,12 @@ pipeline {
         
         stage('Stop Old Containers') {
             steps {
-                bat 'docker rm -f backend frontend || echo "No old containers"'
+                script {
+                    echo 'Stopping any process on port 8080...'
+                    bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :8080\') do taskkill /F /PID %%a || echo "No process on 8080"'
+                    echo 'Removing old containers...'
+                    bat 'docker rm -f backend frontend || echo "No old containers"'
+                }
             }
         }
         
