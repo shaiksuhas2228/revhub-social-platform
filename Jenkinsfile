@@ -43,18 +43,6 @@ pipeline {
             }
         }
         
-        stage('Stop Old Containers') {
-            steps {
-                script {
-                    echo 'Stopping any process on port 8080...'
-                    bat '''powershell -Command "Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" || echo Done'''
-                    bat 'timeout /t 2 /nobreak >nul 2>&1 || echo Done'
-                    echo 'Removing old containers...'
-                    bat 'docker rm -f backend frontend 2>nul || echo Done'
-                }
-            }
-        }
-        
         stage('Deploy Containers') {
             steps {
                 echo 'Ensuring Docker network exists...'
