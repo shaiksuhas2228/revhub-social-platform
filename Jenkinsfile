@@ -47,9 +47,10 @@ pipeline {
             steps {
                 script {
                     echo 'Stopping any process on port 8080...'
-                    bat 'for /f "tokens=5" %%a in (\'netstat -aon ^| findstr :8080\') do taskkill /F /PID %%a || echo "No process on 8080"'
+                    bat 'FOR /F "tokens=5" %%a IN (\'netstat -aon ^| findstr :8080\') DO taskkill /F /PID %%a 2>nul'
+                    bat 'timeout /t 2 /nobreak >nul 2>&1 || echo "Wait complete"'
                     echo 'Removing old containers...'
-                    bat 'docker rm -f backend frontend || echo "No old containers"'
+                    bat 'docker rm -f backend frontend 2>nul || echo "No old containers"'
                 }
             }
         }
