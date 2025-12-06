@@ -23,6 +23,8 @@ pipeline {
                     bat 'docker ps -a | findstr mongo-revhub && docker start mongo-revhub || docker run -d --name mongo-revhub -p 27017:27017 mongo:latest'
                     echo 'Waiting for MongoDB to be ready...'
                     sleep(15)
+                    echo 'Initializing MongoDB collections...'
+                    bat 'docker exec -i mongo-revhub mongosh revhubteam4 --eval "db.createCollection(\'chatMessage\'); db.createCollection(\'notificationMongo\'); db.chatMessage.createIndex({\'senderId\': 1, \'receiverId\': 1, \'timestamp\': -1}); db.notificationMongo.createIndex({\'userId\': 1, \'createdDate\': -1});" || echo "MongoDB init done"'
                     echo 'Using host MySQL on port 3306'
                 }
             }
