@@ -2,7 +2,6 @@ pipeline {
     agent any
     
     environment {
-        MONGO_URI = 'mongodb://host.docker.internal:27017/revhubteam4'
         GITHUB_REPO = 'https://github.com/shaiksuhas2228/revhub-social-platform.git'
     }
     
