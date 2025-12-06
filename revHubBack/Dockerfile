@@ -26,4 +26,4 @@ EXPOSE 8080
 ENV SPRING_PROFILES_ACTIVE=prod
 
 # Run app
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT java -jar app.jar
