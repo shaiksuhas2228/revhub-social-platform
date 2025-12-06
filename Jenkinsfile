@@ -4,7 +4,7 @@ pipeline {
     environment {
         MYSQL_ROOT_PASSWORD = 'root'
         MYSQL_DATABASE = 'revhubteam7'
-        MONGO_URI = 'mongodb://localhost:27017/revhubteam4'
+        MONGO_URI = 'mongodb://host.docker.internal:27017/revhubteam4'
         GITHUB_REPO = 'https://github.com/shaiksuhas2228/revhub-social-platform.git'
     }
     
@@ -19,43 +19,81 @@ pipeline {
             }
         }
         
-        stage('Build & Deploy') {
+        stage('Verify Databases') {
             steps {
+                script {
+                    echo 'Checking MySQL and MongoDB...'
+                    bat 'docker ps | findstr mysql || echo "MySQL not running"'
+                    bat 'docker ps | findstr mongo || echo "MongoDB not running"'
+                }
+            }
+        }
+        
+        stage('Build Docker Images') {
+            steps {
+                echo 'Building backend image...'
                 bat 'docker build -t revhub-backend ./revHubBack'
+                echo 'Building frontend image...'
                 bat 'docker build -t revhub-frontend ./RevHub/RevHub'
-                bat 'docker rm -f backend frontend || echo "No containers to remove"'
+            }
+        }
+        
+        stage('Stop Old Containers') {
+            steps {
+                bat 'docker rm -f backend frontend || echo "No old containers"'
+            }
+        }
+        
+        stage('Deploy Containers') {
+            steps {
+                echo 'Starting backend on port 8080...'
                 bat 'docker run -d --name backend --env-file backend.env.properties -p 8080:8080 revhub-backend'
+                echo 'Starting frontend on port 4200...'
                 bat 'docker run -d --name frontend -p 4200:80 revhub-frontend'
             }
         }
         
-
-        
         stage('Health Check') {
             steps {
                 script {
+                    echo 'Waiting for services to start...'
                     sleep(30)
-                    bat 'curl -f http://localhost:8080 || echo "Backend health check failed"'
-                    bat 'curl -f http://localhost:4200 || echo "Frontend health check failed"'
+                    echo 'Checking backend health...'
+                    bat 'curl -f http://localhost:8080/actuator/health || echo "Backend starting..."'
+                    echo 'Checking frontend health...'
+                    bat 'curl -f http://localhost:4200 || echo "Frontend starting..."'
                 }
+            }
+        }
+        
+        stage('Verify Deployment') {
+            steps {
+                bat 'docker ps | findstr backend'
+                bat 'docker ps | findstr frontend'
+                bat 'docker logs backend --tail 50'
             }
         }
     }
     
     post {
         always {
-            script {
-                echo 'Build completed'
-            }
+            echo 'Build completed'
         }
         success {
+            echo '========================================'
             echo 'Pipeline completed successfully!'
-            echo 'Backend: http://localhost:8080'
+            echo '========================================'
             echo 'Frontend: http://localhost:4200'
+            echo 'Backend: http://localhost:8080'
+            echo 'MySQL: localhost:3306 (revhubteam7)'
+            echo 'MongoDB: localhost:27017 (revhubteam4)'
+            echo '========================================'
         }
         failure {
+            bat 'docker logs backend --tail 100 || echo "No backend logs"'
+            bat 'docker logs frontend --tail 100 || echo "No frontend logs"'
             bat 'docker rm -f backend frontend || echo "No containers to stop"'
-            echo 'Pipeline failed!'
+            echo 'Pipeline failed! Check logs above.'
         }
         cleanup {
             bat 'docker system prune -f || echo "Cleanup done"'
